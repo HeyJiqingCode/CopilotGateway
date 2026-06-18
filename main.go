@@ -6,8 +6,6 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
-	"net/http/httputil"
-	"net/url"
 	"os"
 	"os/signal"
 	"path/filepath"
@@ -18,6 +16,7 @@ import (
 	"github.com/whtsky/copilot2api/anthropic"
 	"github.com/whtsky/copilot2api/auth"
 	"github.com/whtsky/copilot2api/gemini"
+	"github.com/whtsky/copilot2api/internal/copilot"
 	"github.com/whtsky/copilot2api/internal/models"
 	"github.com/whtsky/copilot2api/internal/upstream"
 	"github.com/whtsky/copilot2api/proxy"
@@ -30,6 +29,7 @@ func main() {
 		port        = flag.Int("port", 0, "Server port (env: COPILOT2API_PORT, default: 7777)")
 		host        = flag.String("host", "", "Server host (env: COPILOT2API_HOST, default: 127.0.0.1)")
 		tokenDir    = flag.String("token-dir", "", "Token storage directory (env: COPILOT2API_TOKEN_DIR, default: ~/.config/copilot2api)")
+		apiKey      = flag.String("api-key", "", "Required API key(s) for clients, comma-separated (env: COPILOT2API_API_KEY)")
 		showVersion = flag.Bool("version", false, "Show version and exit")
 		debug       = flag.Bool("debug", false, "Enable debug logging (env: COPILOT2API_DEBUG)")
 	)
@@ -67,10 +67,23 @@ func main() {
 			*tokenDir = v
 		}
 	}
+	if *apiKey == "" {
+		*apiKey = os.Getenv("COPILOT2API_API_KEY")
+	}
 
 	if *showVersion {
 		fmt.Printf("copilot2api version %s\n", version)
 		os.Exit(0)
+	}
+
+	// 允许通过环境变量覆盖伪装的客户端版本头(缺省回退到内置真实值)
+	copilot.ConfigureFromEnv()
+
+	// 强制鉴权:必须配置至少一个 API key,否则拒绝启动(避免公网开放代理)
+	apiKeys := auth.ParseAPIKeys(*apiKey)
+	if len(apiKeys) == 0 {
+		fmt.Fprintln(os.Stderr, "error: an API key is required. Set COPILOT2API_API_KEY (or -api-key), comma-separated for multiple.")
+		os.Exit(1)
 	}
 
 	// Set up logging
@@ -138,34 +151,10 @@ func main() {
 	mux.Handle("/v1beta/models/", geminiHandler)
 	mux.HandleFunc("/usage", proxyHandler.HandleUsage)
 
-	// AmpCode routes — strip /amp prefix so existing handlers see /v1/...
-	mux.Handle("/amp/v1/chat/completions", http.StripPrefix("/amp", proxyHandler))
-	mux.Handle("/amp/v1/models", http.StripPrefix("/amp", proxyHandler))
-	mux.Handle("/amp/v1/responses", http.StripPrefix("/amp", proxyHandler))
-	mux.Handle("/amp/v1/embeddings", http.StripPrefix("/amp", proxyHandler))
-
-	// AmpCode provider-specific routes
-	mux.Handle("/api/provider/openai/v1/chat/completions", http.StripPrefix("/api/provider/openai", proxyHandler))
-	mux.Handle("/api/provider/openai/v1/responses", http.StripPrefix("/api/provider/openai", proxyHandler))
-	mux.Handle("/api/provider/openai/v1/models", http.StripPrefix("/api/provider/openai", proxyHandler))
-	mux.Handle("/api/provider/anthropic/v1/messages", http.StripPrefix("/api/provider/anthropic", anthropicHandler))
-	mux.Handle("/api/provider/google/v1beta/models", http.StripPrefix("/api/provider/google", geminiHandler))
-	mux.Handle("/api/provider/google/v1beta/models/", http.StripPrefix("/api/provider/google", geminiHandler))
-
-	// AmpCode management — reverse proxy to ampcode.com for auth, threads, etc.
-	// AI inference stays on Copilot API (routes above); only metadata hits ampcode.com.
-	ampBackend, _ := url.Parse("https://ampcode.com")
-	ampReverseProxy := newAmpReverseProxy(ampBackend)
-	mux.Handle("/api/", ampReverseProxy)
-	mux.HandleFunc("/amp/v1/login", func(w http.ResponseWriter, r *http.Request) {
-		http.Redirect(w, r, "https://ampcode.com/login", http.StatusFound)
-	})
-	mux.HandleFunc("/amp/auth/cli-login", func(w http.ResponseWriter, r *http.Request) {
-		target := "https://ampcode.com/auth/cli-login"
-		if r.URL.RawQuery != "" {
-			target += "?" + r.URL.RawQuery
-		}
-		http.Redirect(w, r, target, http.StatusFound)
+	// 健康检查端点 — 免鉴权,供云端负载均衡器/k8s 探针使用
+	mux.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.Write([]byte(`{"status":"ok"}`))
 	})
 
 	// Pre-warm models cache to avoid cold-cache latency on first request
@@ -182,7 +171,8 @@ func main() {
 		// No ReadTimeout — ReadHeaderTimeout protects against slowloris.
 		// ReadTimeout would kill long-lived SSE streaming connections.
 		IdleTimeout: 120 * time.Second,
-		Handler:     logAllRequests(mux),
+		// 中间件链:最外层记录所有请求(含 401),再做 API key 鉴权,最后进 mux
+		Handler: logAllRequests(auth.APIKeyAuth(apiKeys, mux)),
 	}
 
 	// Start server in goroutine
@@ -216,20 +206,6 @@ func main() {
 	}
 
 	slog.Info("server stopped")
-}
-
-// newAmpReverseProxy creates a reverse proxy to ampcode.com that forwards the
-// client's auth headers. Used for amp CLI management calls (getUserInfo,
-// threads, telemetry, etc.) — no AI credits are consumed.
-func newAmpReverseProxy(target *url.URL) *httputil.ReverseProxy {
-	return &httputil.ReverseProxy{
-		Director: func(req *http.Request) {
-			slog.Debug("amp proxy", "method", req.Method, "path", req.URL.Path, "query", req.URL.RawQuery)
-			req.URL.Scheme = target.Scheme
-			req.URL.Host = target.Host
-			req.Host = target.Host
-		},
-	}
 }
 
 func logAllRequests(next http.Handler) http.Handler {

@@ -6,15 +6,37 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"os"
 	"time"
 )
 
-// Exported constants for User-Agent and version headers.
+// 默认版本头 — 取自真实的 VSCode + Copilot Chat 客户端实测值
 const (
-	CopilotUserAgent    = "GitHubCopilotChat/0.39.0"
-	EditorVersion       = "vscode/1.111.0"
-	EditorPluginVersion = "copilot-chat/0.39.0"
+	defaultCopilotUserAgent    = "GitHubCopilotChat/0.52.0"
+	defaultEditorVersion       = "vscode/1.124.2"
+	defaultEditorPluginVersion = "copilot-chat/0.52.0"
 )
+
+// 伪装的客户端版本头。进程内全局唯一,启动时由 ConfigureFromEnv 一次性覆盖,
+// 之后只读,无并发写风险。
+var (
+	CopilotUserAgent    = defaultCopilotUserAgent
+	EditorVersion       = defaultEditorVersion
+	EditorPluginVersion = defaultEditorPluginVersion
+)
+
+// ConfigureFromEnv 用非空环境变量覆盖默认版本头。须在启动早期调用一次。
+func ConfigureFromEnv() {
+	if v := os.Getenv("COPILOT2API_CHAT_USER_AGENT"); v != "" {
+		CopilotUserAgent = v
+	}
+	if v := os.Getenv("COPILOT2API_EDITOR_VERSION"); v != "" {
+		EditorVersion = v
+	}
+	if v := os.Getenv("COPILOT2API_PLUGIN_VERSION"); v != "" {
+		EditorPluginVersion = v
+	}
+}
 
 // AddHeaders adds required Copilot headers to the request
 func AddHeaders(req *http.Request, token string) {

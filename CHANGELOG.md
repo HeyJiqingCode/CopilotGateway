@@ -2,6 +2,16 @@
 
 ## [Unreleased]
 
+### Breaking Changes
+
+- Require an API key for all requests — the proxy now refuses to start without `COPILOT2API_API_KEY` (or `-api-key`). Clients must send the key via `Authorization: Bearer`, `x-api-key`, `x-goog-api-key`, or `?key=`. This makes the proxy safe to expose beyond localhost.
+- Remove AmpCode support — the `/amp/*`, `/api/provider/*`, and `/api/*` reverse-proxy routes are gone
+
+### Features
+
+- Add unauthenticated `/health` endpoint for cloud load balancer / k8s readiness probes
+- Make the spoofed Copilot client version headers configurable via `COPILOT2API_EDITOR_VERSION`, `COPILOT2API_PLUGIN_VERSION`, and `COPILOT2API_CHAT_USER_AGENT`
+
 ## [0.3.1] - 2026-04-26
 
 ### Bug Fixes
