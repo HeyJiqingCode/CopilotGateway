@@ -91,12 +91,16 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		route = "native"
 		cacheControlInfo := inspectCacheControl(reqBody)
 		topLevelInfo := inspectTopLevelFields(reqBody)
-		slog.Debug("native /messages passthrough request", "model", anthropicReq.Model, "top_level_keys", topLevelInfo.Keys, "has_context_management", topLevelInfo.HasContextManagement, "cache_control_count", cacheControlInfo.Count, "cache_control_scope_count", cacheControlInfo.ScopeCount, "cache_control_paths", cacheControlInfo.Paths, "cache_control_scope_paths", cacheControlInfo.ScopePaths)
+		reasoningInfo := inspectReasoningFields(reqBody)
+		// 仅当模型确定不支持 reasoning effort 且客户端确实发了 output_config/thinking 时才剥离。
+		// 两个守卫缺一不可:无能力检查会破坏 opus/sonnet;无存在检查会让每个请求白白重编码。
+		stripReasoning := reasoningInfo.Any() && !modelSupportsReasoningEffort(modelInfo)
+		slog.Debug("native /messages passthrough request", "model", anthropicReq.Model, "top_level_keys", topLevelInfo.Keys, "has_context_management", topLevelInfo.HasContextManagement, "cache_control_count", cacheControlInfo.Count, "cache_control_scope_count", cacheControlInfo.ScopeCount, "cache_control_paths", cacheControlInfo.Paths, "cache_control_scope_paths", cacheControlInfo.ScopePaths, "strip_reasoning", stripReasoning)
 		// Only re-encode the body for native passthrough (the only path that
 		// sends raw reqBody). Responses and Chat Completions paths use the
 		// parsed struct, so they skip this JSON round-trip.
-		if modelChanged || cacheControlInfo.ScopeCount > 0 || topLevelInfo.HasContextManagement {
-			newBody, err := normalizeNativeMessagesBody(reqBody, resolvedModel, modelChanged)
+		if modelChanged || cacheControlInfo.ScopeCount > 0 || topLevelInfo.HasContextManagement || stripReasoning {
+			newBody, err := normalizeNativeMessagesBody(reqBody, resolvedModel, modelChanged, stripReasoning)
 			if err != nil {
 				WriteAnthropicError(w, http.StatusBadRequest, AnthropicErrorTypeInvalidRequest, fmt.Sprintf("Invalid JSON: %v", err))
 				return
@@ -106,6 +110,9 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			}
 			if topLevelInfo.HasContextManagement {
 				slog.Debug("normalized native /messages request", "removed_top_level_field", "context_management")
+			}
+			if stripReasoning {
+				slog.Debug("normalized native /messages request", "removed_reasoning_fields_output_config", reasoningInfo.HasOutputConfig, "removed_reasoning_fields_thinking", reasoningInfo.HasThinking)
 			}
 			reqBody = newBody
 		}
@@ -671,7 +678,7 @@ func replaceModelInBody(body []byte, newModel string) ([]byte, error) {
 	return json.Marshal(raw)
 }
 
-func normalizeNativeMessagesBody(body []byte, newModel string, replaceModel bool) ([]byte, error) {
+func normalizeNativeMessagesBody(body []byte, newModel string, replaceModel, stripReasoning bool) ([]byte, error) {
 	var raw interface{}
 	if err := json.Unmarshal(body, &raw); err != nil {
 		return nil, err
@@ -687,6 +694,12 @@ func normalizeNativeMessagesBody(body []byte, newModel string, replaceModel bool
 	}
 
 	delete(obj, "context_management")
+	if stripReasoning {
+		// 模型不支持 reasoning effort;移除会被上游拒绝的字段
+		// (如 haiku 上的 output_config.effort)。output_config 当前仅承载 effort,整删够用。
+		delete(obj, "output_config")
+		delete(obj, "thinking")
+	}
 	stripCacheControlScope(obj)
 	return json.Marshal(obj)
 }
@@ -710,6 +723,26 @@ func inspectTopLevelFields(body []byte) topLevelFieldInspection {
 
 	_, hasContextManagement := raw["context_management"]
 	return topLevelFieldInspection{Keys: keys, HasContextManagement: hasContextManagement}
+}
+
+// reasoningFieldInspection 记录请求体顶层是否含 reasoning 相关字段。
+type reasoningFieldInspection struct {
+	HasOutputConfig bool
+	HasThinking     bool
+}
+
+func (i reasoningFieldInspection) Any() bool { return i.HasOutputConfig || i.HasThinking }
+
+// inspectReasoningFields 检测请求体顶层是否带 output_config / thinking
+// (Anthropic 的 reasoning effort 载体)。用轻量 RawMessage 解码避免全量解析。
+func inspectReasoningFields(body []byte) reasoningFieldInspection {
+	var raw map[string]json.RawMessage
+	if err := json.Unmarshal(body, &raw); err != nil {
+		return reasoningFieldInspection{}
+	}
+	_, hasOutputConfig := raw["output_config"]
+	_, hasThinking := raw["thinking"]
+	return reasoningFieldInspection{HasOutputConfig: hasOutputConfig, HasThinking: hasThinking}
 }
 
 type cacheControlInspection struct {

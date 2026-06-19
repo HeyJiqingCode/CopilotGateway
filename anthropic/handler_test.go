@@ -63,7 +63,7 @@ func TestNormalizeNativeMessagesBody_RemovesCacheControlScope(t *testing.T) {
 		"max_tokens": 16
 	}`)
 
-	normalized, err := normalizeNativeMessagesBody(body, "claude-opus-4.6", true)
+	normalized, err := normalizeNativeMessagesBody(body, "claude-opus-4.6", true, false)
 	if err != nil {
 		t.Fatalf("normalizeNativeMessagesBody returned error: %v", err)
 	}
@@ -102,5 +102,97 @@ func TestNormalizeNativeMessagesBody_RemovesCacheControlScope(t *testing.T) {
 	messageCacheControl := parts[0].(map[string]interface{})["cache_control"].(map[string]interface{})
 	if _, ok := messageCacheControl["scope"]; ok {
 		t.Fatalf("message cache_control.scope still present")
+	}
+}
+
+func TestNormalizeNativeMessagesBody_StripsReasoningWhenUnsupported(t *testing.T) {
+	body := []byte(`{
+		"model": "claude-haiku-4.5",
+		"output_config": {"effort": "medium"},
+		"thinking": {"type": "enabled", "budget_tokens": 4000},
+		"system": "you are helpful",
+		"messages": [{"role": "user", "content": "hi"}],
+		"max_tokens": 16
+	}`)
+
+	normalized, err := normalizeNativeMessagesBody(body, "claude-haiku-4.5", false, true)
+	if err != nil {
+		t.Fatalf("normalizeNativeMessagesBody returned error: %v", err)
+	}
+
+	var decoded map[string]interface{}
+	if err := json.Unmarshal(normalized, &decoded); err != nil {
+		t.Fatalf("failed to decode normalized body: %v", err)
+	}
+
+	if _, ok := decoded["output_config"]; ok {
+		t.Fatalf("output_config still present after strip")
+	}
+	if _, ok := decoded["thinking"]; ok {
+		t.Fatalf("thinking still present after strip")
+	}
+	// 其余字段必须完好
+	if decoded["system"] != "you are helpful" {
+		t.Fatalf("system altered: %v", decoded["system"])
+	}
+	if decoded["max_tokens"].(float64) != 16 {
+		t.Fatalf("max_tokens altered: %v", decoded["max_tokens"])
+	}
+	if _, ok := decoded["messages"]; !ok {
+		t.Fatalf("messages missing")
+	}
+}
+
+func TestNormalizeNativeMessagesBody_KeepsReasoningWhenSupported(t *testing.T) {
+	body := []byte(`{
+		"model": "claude-opus-4.8",
+		"output_config": {"effort": "high"},
+		"thinking": {"type": "enabled", "budget_tokens": 16000},
+		"messages": [{"role": "user", "content": "hi"}],
+		"max_tokens": 16
+	}`)
+
+	normalized, err := normalizeNativeMessagesBody(body, "claude-opus-4.8", false, false)
+	if err != nil {
+		t.Fatalf("normalizeNativeMessagesBody returned error: %v", err)
+	}
+
+	var decoded map[string]interface{}
+	if err := json.Unmarshal(normalized, &decoded); err != nil {
+		t.Fatalf("failed to decode normalized body: %v", err)
+	}
+
+	if _, ok := decoded["output_config"]; !ok {
+		t.Fatalf("output_config dropped for supported model")
+	}
+	if _, ok := decoded["thinking"]; !ok {
+		t.Fatalf("thinking dropped for supported model")
+	}
+}
+
+func TestInspectReasoningFields(t *testing.T) {
+	tests := []struct {
+		name            string
+		body            string
+		wantOutputCfg   bool
+		wantThinking    bool
+	}{
+		{"both present", `{"output_config":{"effort":"low"},"thinking":{"type":"enabled"}}`, true, true},
+		{"only output_config", `{"output_config":{"effort":"low"}}`, true, false},
+		{"only thinking", `{"thinking":{"type":"enabled"}}`, false, true},
+		{"neither", `{"model":"x","messages":[]}`, false, false},
+		{"malformed json", `{not json`, false, false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := inspectReasoningFields([]byte(tt.body))
+			if got.HasOutputConfig != tt.wantOutputCfg {
+				t.Errorf("HasOutputConfig = %v, want %v", got.HasOutputConfig, tt.wantOutputCfg)
+			}
+			if got.HasThinking != tt.wantThinking {
+				t.Errorf("HasThinking = %v, want %v", got.HasThinking, tt.wantThinking)
+			}
+		})
 	}
 }

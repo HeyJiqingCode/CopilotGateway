@@ -73,3 +73,7 @@ func (h *Handler) getModelInfo(ctx context.Context, modelID string) (*models.Inf
 func modelSupportsEndpoint(info *models.Info, endpoint string) bool {
 	return models.SupportsEndpoint(info, endpoint)
 }
+
+func modelSupportsReasoningEffort(info *models.Info) bool {
+	return models.SupportsReasoningEffort(info)
+}

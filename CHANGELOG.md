@@ -12,6 +12,10 @@
 - Add unauthenticated `/health` endpoint for cloud load balancer / k8s readiness probes
 - Make the spoofed Copilot client version headers configurable via `COPILOT2API_EDITOR_VERSION`, `COPILOT2API_PLUGIN_VERSION`, and `COPILOT2API_CHAT_USER_AGENT`
 
+### Bug Fixes
+
+- Strip `output_config`/`thinking` from native `/v1/messages` requests when the target model doesn't support reasoning effort, fixing a `400 ... does not support reasoning effort` error (e.g. `claude-haiku-4.5` used as a small/fast model by Claude Desktop / Claude Code)
+
 ## [0.3.1] - 2026-04-26
 
 ### Bug Fixes

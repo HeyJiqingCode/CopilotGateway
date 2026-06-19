@@ -15,8 +15,20 @@ import (
 
 // Info contains model metadata including supported endpoints.
 type Info struct {
-	ID                 string   `json:"id"`
-	SupportedEndpoints []string `json:"supported_endpoints"`
+	ID                 string       `json:"id"`
+	SupportedEndpoints []string     `json:"supported_endpoints"`
+	Capabilities       Capabilities `json:"capabilities"`
+}
+
+// Capabilities 镜像上游 /models 的 capabilities 对象(仅解析我们需要的部分)。
+type Capabilities struct {
+	Supports Supports `json:"supports"`
+}
+
+// Supports 描述模型支持的特性。
+type Supports struct {
+	// ReasoningEffort 缺失或为空 = 模型不接受 reasoning effort(如 claude-haiku-4.5)。
+	ReasoningEffort []string `json:"reasoning_effort"`
 }
 
 // modelsListResponse is the response from the /models endpoint.
@@ -165,6 +177,17 @@ func SupportsEndpoint(info *Info, endpoint string) bool {
 		}
 	}
 	return false
+}
+
+// SupportsReasoningEffort 报告模型是否接受 reasoning effort(output_config.effort / thinking)。
+// 模型通过非空的 capabilities.supports.reasoning_effort 数组声明该能力。
+// 未知模型(info == nil)返回 true —— 保守地不剥离请求字段,交由上游裁决。
+// 注意方向与 SupportsEndpoint(nil)==false 相反:此处「保守」= 别改请求体。
+func SupportsReasoningEffort(info *Info) bool {
+	if info == nil {
+		return true
+	}
+	return len(info.Capabilities.Supports.ReasoningEffort) > 0
 }
 
 func normalizeEndpoint(endpoint string) string {
