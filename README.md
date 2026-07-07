@@ -133,8 +133,8 @@ response = client.chat.completions.create(
 |----------|--------|-------------|
 | `/v1/chat/completions` | POST | OpenAI Chat Completions (streaming & non-streaming) |
 | `/v1/responses` | POST | OpenAI Responses API |
-| `/v1/models` | GET | List available models (5min cache) |
 | `/v1/messages` | POST | Anthropic Messages API (streaming & non-streaming) |
+| `/v1/models` | GET | List available models (5min cache) |
 | `/usage` | GET | Copilot plan, reset date, and quota snapshots |
 | `/health` | GET | Health check (unauthenticated) |
 
