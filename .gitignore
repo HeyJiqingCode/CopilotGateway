@@ -17,6 +17,8 @@ vendor/
 # Go workspace
 go.work
 go.work.sum
+.go/
+.go-build/
 
 # IDE
 .idea/
