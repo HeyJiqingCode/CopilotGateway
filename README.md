@@ -4,8 +4,7 @@ A lightweight Go proxy that exposes GitHub Copilot as OpenAI-compatible and Anth
 
 ## Features
 
-- **OpenAI API Compatible**: `/v1/chat/completions`, `/v1/models`, `/v1/embeddings`, `/v1/responses`
-- **Embeddings Support**: Native OpenAI-compatible `/v1/embeddings` endpoint
+- **OpenAI API Compatible**: `/v1/chat/completions`, `/v1/models`, `/v1/responses`
 - **Anthropic API Compatible**: `/v1/messages`
 - **API Key Auth**: Required key for all requests — safe to deploy beyond localhost
 - **Streaming Support**: Full SSE streaming for both OpenAI and Anthropic formats
@@ -135,7 +134,6 @@ response = client.chat.completions.create(
 | `/v1/chat/completions` | POST | OpenAI Chat Completions (streaming & non-streaming) |
 | `/v1/responses` | POST | OpenAI Responses API |
 | `/v1/models` | GET | List available models (5min cache) |
-| `/v1/embeddings` | POST | Generate embeddings (string or array input) |
 | `/v1/messages` | POST | Anthropic Messages API (streaming & non-streaming) |
 | `/usage` | GET | Copilot plan, reset date, and quota snapshots |
 | `/health` | GET | Health check (unauthenticated) |
@@ -177,5 +175,5 @@ CLI flags take precedence over environment variables.
 
 1. Authenticates with GitHub via Device Flow OAuth
 2. Exchanges GitHub token for Copilot API token (auto-refreshes)
-3. Forwards each request straight to the matching Copilot endpoint — OpenAI formats to `/chat/completions`, `/responses`, `/embeddings`; Anthropic to `/v1/messages`
+3. Forwards each request straight to the matching Copilot endpoint — OpenAI formats to `/chat/completions` and `/responses`; Anthropic to `/v1/messages`
 4. Automatically detects API endpoint from token (Individual/Business/Enterprise)

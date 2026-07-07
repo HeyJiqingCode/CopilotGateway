@@ -10,6 +10,7 @@
 ### Removed
 
 - Remove the Gemini-compatible `/v1beta/models` endpoints (`generateContent`, `streamGenerateContent`, `countTokens`) — `gemini-cli` is no longer supported
+- Remove the OpenAI-compatible `/v1/embeddings` endpoint — use a dedicated embedding provider such as Azure AI Foundry instead
 - Remove cross-format request conversion — `/v1/chat/completions`, `/v1/responses`, and `/v1/messages` now pass through to the matching upstream endpoint only, instead of smart-routing/translating between Chat Completions, Responses, and Anthropic formats. Send each model to the endpoint its API natively speaks (Codex/GPT → `/v1/responses`, Claude → `/v1/messages`)
 - Remove the `anthropic-beta: context-1m` → `-1m` model-ID rewrite — Copilot's current catalog carries the full context window on the base model ID (no `-1m` variants exist), so the rewrite produced an unknown model. Send the base model ID directly
 

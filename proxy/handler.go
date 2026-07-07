@@ -44,8 +44,6 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	switch endpoint {
 	case "/models":
 		h.handleModels(w, r)
-	case "/embeddings":
-		h.handleEmbeddings(w, r)
 	case "/chat/completions":
 		h.handlePassthrough(w, r, endpoint)
 	case "/responses":
@@ -176,36 +174,6 @@ func (h *Handler) HandleUsage(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(usage)
-}
-
-// handleEmbeddings normalizes input to array format before proxying
-func (h *Handler) handleEmbeddings(w http.ResponseWriter, r *http.Request) {
-	r.Body = http.MaxBytesReader(w, r.Body, upstream.MaxRequestBody) // 10MB limit
-	body, err := io.ReadAll(r.Body)
-	if err != nil {
-		WriteOpenAIError(w, http.StatusBadRequest, OpenAIErrorTypeInvalidRequest, "Failed to read request body")
-		return
-	}
-
-	var req map[string]json.RawMessage
-	if err := json.Unmarshal(body, &req); err != nil {
-		WriteOpenAIError(w, http.StatusBadRequest, OpenAIErrorTypeInvalidRequest, "Invalid JSON")
-		return
-	}
-
-	// If input is a string, wrap it in an array
-	if input, ok := req["input"]; ok {
-		var s string
-		if json.Unmarshal(input, &s) == nil {
-			wrapped, _ := json.Marshal([]string{s})
-			req["input"] = wrapped
-			body, _ = json.Marshal(req)
-		}
-	}
-
-	r.Body = io.NopCloser(bytes.NewReader(body))
-	r.ContentLength = int64(len(body))
-	h.handlePassthroughBody(w, r, "/embeddings", body)
 }
 
 // --- OpenAI error response helpers ---

@@ -140,7 +140,6 @@ func main() {
 	// Core routes
 	mux.Handle("/v1/chat/completions", proxyHandler)
 	mux.Handle("/v1/models", proxyHandler)
-	mux.Handle("/v1/embeddings", proxyHandler)
 	mux.Handle("/v1/responses", proxyHandler)
 	mux.Handle("/v1/messages", anthropicHandler)
 	mux.HandleFunc("/usage", proxyHandler.HandleUsage)

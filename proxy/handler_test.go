@@ -284,46 +284,6 @@ func TestUpstreamError(t *testing.T) {
 	}
 }
 
-func TestHandleEmbeddingsStringInput(t *testing.T) {
-	body := `{"model":"text-embedding-3-small","input":"hello"}`
-	var reqMap map[string]json.RawMessage
-	json.Unmarshal([]byte(body), &reqMap)
-
-	// String input should be wrappable to array
-	var s string
-	if err := json.Unmarshal(reqMap["input"], &s); err != nil {
-		t.Fatalf("input should unmarshal as string: %v", err)
-	}
-	wrapped, _ := json.Marshal([]string{s})
-	reqMap["input"] = wrapped
-
-	var result []string
-	json.Unmarshal(reqMap["input"], &result)
-	if len(result) != 1 || result[0] != "hello" {
-		t.Errorf("expected [hello], got %v", result)
-	}
-}
-
-func TestHandleEmbeddingsArrayInput(t *testing.T) {
-	body := `{"model":"text-embedding-3-small","input":["hello","world"]}`
-	var reqMap map[string]json.RawMessage
-	json.Unmarshal([]byte(body), &reqMap)
-
-	// Array input should NOT unmarshal as string
-	var s string
-	if json.Unmarshal(reqMap["input"], &s) == nil {
-		t.Error("array input should not unmarshal as string")
-	}
-
-	var result []string
-	if err := json.Unmarshal(reqMap["input"], &result); err != nil {
-		t.Fatalf("array input should unmarshal as []string: %v", err)
-	}
-	if len(result) != 2 || result[0] != "hello" || result[1] != "world" {
-		t.Errorf("expected [hello world], got %v", result)
-	}
-}
-
 // stubTokenProvider implements upstream.TokenProvider for tests.
 type stubTokenProvider struct {
 	baseURL string
