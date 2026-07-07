@@ -16,8 +16,6 @@ A lightweight Go proxy that exposes GitHub Copilot as OpenAI-compatible and Anth
 
 ## Quick Start
 
-### Docker
-
 ```bash
 docker run -it --rm \
   -p 127.0.0.1:7777:7777 \
@@ -28,47 +26,7 @@ docker run -it --rm \
 
 An API key is **required** — set `COPILOT2API_API_KEY` or the proxy will refuse to start. The volume mount persists your GitHub credentials across container restarts. The examples publish the port on `127.0.0.1` only so the proxy stays local by default.
 
-<details>
-<summary>Docker Compose</summary>
-
-```yaml
-services:
-  copilot2api:
-    image: ghcr.io/whtsky/copilot2api:latest
-    ports:
-      - "127.0.0.1:7777:7777"
-    environment:
-      COPILOT2API_API_KEY: your-secret-key
-    volumes:
-      - ${HOME}/.config/copilot2api:/root/.config/copilot2api
-```
-
-Start it with:
-
-```bash
-docker compose up
-```
-
-</details>
-
-### Download a release binary
-
-```bash
-# Example: macOS Apple Silicon
-curl -L -o copilot2api \
-  https://github.com/whtsky/copilot2api/releases/latest/download/copilot2api-darwin-arm64
-
-# Example: Linux x64
-# curl -L -o copilot2api \
-#   https://github.com/whtsky/copilot2api/releases/latest/download/copilot2api-linux-amd64
-
-chmod +x copilot2api
-COPILOT2API_API_KEY=your-secret-key ./copilot2api
-```
-
-Download the asset that matches your platform from [GitHub Releases](https://github.com/whtsky/copilot2api/releases/latest). Published binaries use names like `copilot2api-linux-amd64`, `copilot2api-linux-arm64`, `copilot2api-darwin-amd64`, `copilot2api-darwin-arm64`, `copilot2api-windows-amd64.exe`, and `copilot2api-windows-arm64.exe`.
-
-On first run, both Docker and downloaded binaries prompt GitHub Device Flow authentication:
+On first run, it prompt GitHub Device Flow authentication:
 
 ```
 🔐 GitHub Authentication Required
@@ -89,7 +47,9 @@ Server starts on `http://127.0.0.1:7777` by default.
 - The `/health` endpoint is unauthenticated for load balancer probes.
 - Credentials are stored in `~/.config/copilot2api/credentials.json`.
 
-## Usage with Claude Code
+## Usage with Anthropic
+
+### Claude Code
 
 Add to `~/.claude/settings.json`:
 
@@ -98,7 +58,7 @@ Add to `~/.claude/settings.json`:
   "env": {
     "ANTHROPIC_BASE_URL": "http://127.0.0.1:7777",
     "ANTHROPIC_API_KEY": "your-secret-key",
-    "ANTHROPIC_MODEL": "claude-opus-4.6",
+    "ANTHROPIC_MODEL": "claude-opus-4.8",
     "ANTHROPIC_SMALL_FAST_MODEL": "claude-haiku-4.5",
     "CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC": "1"
   },
@@ -108,75 +68,6 @@ Add to `~/.claude/settings.json`:
     ]
   }
 }
-```
-
-### Context Window
-
-Newer Claude models on Copilot (e.g. Opus 4.6/4.7/4.8, Sonnet 4.6/5) expose their context limits through the Copilot `/models` catalog on the base model ID. There are no `-1m` model variants to append; send the model ID as-is.
-
-The `/v1/models` proxy uses VS Code-style model metadata headers (`model-access`) and Copilot API version `2026-06-01`, matching the model catalog shape VS Code currently uses for long-context metadata. If VS Code shows a larger context window than this proxy, check that `COPILOT2API_API_VERSION` is not overridden to an older value.
-
-## Usage with Codex
-
-Add to `~/.codex/config.toml`:
-
-```toml
-model = "gpt-5.3-codex"
-model_provider = "copilot2api"
-model_reasoning_effort = "high"
-web_search = "disabled"
-
-[model_providers.copilot2api]
-name = "copilot2api"
-base_url = "http://127.0.0.1:7777/v1"
-wire_api = "responses"
-api_key = "your-secret-key"
-```
-
-<details>
-<summary>Usage with curl</summary>
-
-```bash
-# OpenAI chat completion
-curl http://localhost:7777/v1/chat/completions \
-  -H "Content-Type: application/json" \
-  -H "Authorization: Bearer your-secret-key" \
-  -d '{"model":"gpt-5.3-codex","messages":[{"role":"user","content":"Hello!"}]}'
-
-# Anthropic message
-curl http://localhost:7777/v1/messages \
-  -H "Content-Type: application/json" \
-  -H "x-api-key: your-secret-key" \
-  -d '{"model":"claude-sonnet-4.6","messages":[{"role":"user","content":"Hello!"}],"max_tokens":100}'
-
-# List models
-curl http://localhost:7777/v1/models \
-  -H "Authorization: Bearer your-secret-key"
-
-# Check usage/quota
-curl http://localhost:7777/usage \
-  -H "Authorization: Bearer your-secret-key"
-```
-
-</details>
-
-<details>
-<summary>Usage with SDKs</summary>
-
-### OpenAI Python SDK
-
-```python
-import openai
-
-client = openai.OpenAI(
-    api_key="your-secret-key",
-    base_url="http://127.0.0.1:7777/v1"
-)
-
-response = client.chat.completions.create(
-    model="gpt-5.3-codex",
-    messages=[{"role": "user", "content": "Hello!"}]
-)
 ```
 
 ### Anthropic Python SDK
@@ -196,7 +87,46 @@ message = client.messages.create(
 )
 ```
 
-</details>
+### Context Window
+
+Newer Claude models on Copilot (e.g. Opus 4.6/4.7/4.8, Sonnet 4.6/5) expose their context limits through the Copilot `/models` catalog on the base model ID. There are no `-1m` model variants to append; send the model ID as-is.
+
+The `/v1/models` proxy uses VS Code-style model metadata headers (`model-access`) and Copilot API version `2026-06-01`, matching the model catalog shape VS Code currently uses for long-context metadata. If VS Code shows a larger context window than this proxy, check that `COPILOT2API_API_VERSION` is not overridden to an older value.
+
+## Usage OpenAI
+
+### Codex
+
+Add to `~/.codex/config.toml`:
+
+```toml
+model = "gpt-5.3-codex"
+model_provider = "copilot2api"
+model_reasoning_effort = "high"
+web_search = "disabled"
+
+[model_providers.copilot2api]
+name = "copilot2api"
+base_url = "http://127.0.0.1:7777/v1"
+wire_api = "responses"
+api_key = "your-secret-key"
+```
+
+### OpenAI Python SDK
+
+```python
+import openai
+
+client = openai.OpenAI(
+    api_key="your-secret-key",
+    base_url="http://127.0.0.1:7777/v1"
+)
+
+response = client.chat.completions.create(
+    model="gpt-5.3-codex",
+    messages=[{"role": "user", "content": "Hello!"}]
+)
+```
 
 ## API Endpoints
 
@@ -249,14 +179,3 @@ CLI flags take precedence over environment variables.
 2. Exchanges GitHub token for Copilot API token (auto-refreshes)
 3. Forwards each request straight to the matching Copilot endpoint — OpenAI formats to `/chat/completions`, `/responses`, `/embeddings`; Anthropic to `/v1/messages`
 4. Automatically detects API endpoint from token (Individual/Business/Enterprise)
-
-## Development
-
-```bash
-go test ./...              # Run tests
-go build -o copilot2api .  # Build
-```
-
-## License
-
-MIT
