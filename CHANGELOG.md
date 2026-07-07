@@ -17,6 +17,7 @@
 
 - Add unauthenticated `/health` endpoint for cloud load balancer / k8s readiness probes
 - Make the spoofed Copilot client version headers configurable via `COPILOT2API_EDITOR_VERSION`, `COPILOT2API_PLUGIN_VERSION`, and `COPILOT2API_CHAT_USER_AGENT`
+- Return Copilot plan and detailed quota snapshots from `/usage`, including reset dates and `premium_interactions` remaining quota
 
 ### Bug Fixes
 

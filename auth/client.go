@@ -3,9 +3,9 @@ package auth
 import (
 	"context"
 	"encoding/json"
-	"net/http"
 	"fmt"
 	"log/slog"
+	"net/http"
 	"sync"
 	"time"
 
@@ -104,7 +104,6 @@ func (c *Client) GetBaseURL() string {
 	return DefaultBaseURL
 }
 
-
 // EnsureAuthenticated runs the interactive device flow if needed and verifies
 // that a valid Copilot token can be obtained. Call this at startup only.
 func (c *Client) EnsureAuthenticated(ctx context.Context) error {
@@ -195,19 +194,44 @@ func (c *Client) refreshCopilotToken() error {
 	slog.Info("copilot token refreshed", "expires_at", copilotToken.ExpiresAt, "base_url", copilotToken.BaseURL, "duration_ms", time.Since(start).Milliseconds())
 	return nil
 }
+
 // UsageInfo contains Copilot usage and quota information
 type UsageInfo struct {
-	SKU                  string      `json:"sku"`
-	Individual           bool        `json:"individual"`
-	LimitedUserQuotas    interface{} `json:"limited_user_quotas"`
-	LimitedUserResetDate interface{} `json:"limited_user_reset_date"`
-	EnterpriseList       []int       `json:"enterprise_list,omitempty"`
-	OrganizationList     []string    `json:"organization_list,omitempty"`
+	Login                 string                   `json:"login,omitempty"`
+	SKU                   string                   `json:"sku,omitempty"`
+	AccessTypeSKU         string                   `json:"access_type_sku,omitempty"`
+	CopilotPlan           string                   `json:"copilot_plan,omitempty"`
+	TokenBasedBilling     bool                     `json:"token_based_billing"`
+	QuotaResetDate        string                   `json:"quota_reset_date,omitempty"`
+	QuotaResetDateUTC     string                   `json:"quota_reset_date_utc,omitempty"`
+	QuotaSnapshots        map[string]QuotaSnapshot `json:"quota_snapshots,omitempty"`
+	OrganizationList      []string                 `json:"organization_list,omitempty"`
+	OrganizationLoginList []string                 `json:"organization_login_list,omitempty"`
+	EnterpriseList        []int                    `json:"enterprise_list,omitempty"`
+	LimitedUserQuotas     interface{}              `json:"limited_user_quotas,omitempty"`
+	LimitedUserResetDate  interface{}              `json:"limited_user_reset_date,omitempty"`
 }
 
+// QuotaSnapshot 描述 Copilot 返回的单类额度快照,例如 chat 或 premium_interactions。
+type QuotaSnapshot struct {
+	QuotaID            string   `json:"quota_id,omitempty"`
+	Entitlement        float64  `json:"entitlement"`
+	Remaining          float64  `json:"remaining"`
+	QuotaRemaining     float64  `json:"quota_remaining"`
+	PercentRemaining   *float64 `json:"percent_remaining,omitempty"`
+	Unlimited          bool     `json:"unlimited"`
+	HasQuota           bool     `json:"has_quota"`
+	TokenBasedBilling  bool     `json:"token_based_billing"`
+	OveragePermitted   bool     `json:"overage_permitted"`
+	OverageCount       float64  `json:"overage_count"`
+	OverageEntitlement float64  `json:"overage_entitlement"`
+	QuotaResetAt       int64    `json:"quota_reset_at,omitempty"`
+	TimestampUTC       string   `json:"timestamp_utc,omitempty"`
+}
 
+const CopilotUserInfoURL = "https://api.github.com/copilot_internal/user"
 
-// GetUsageInfo fetches usage info from the Copilot token endpoint
+// GetUsageInfo fetches Copilot plan and quota information.
 func (c *Client) GetUsageInfo(ctx context.Context) (*UsageInfo, error) {
 	c.mu.RLock()
 	githubToken := c.creds.GitHubToken
@@ -217,12 +241,14 @@ func (c *Client) GetUsageInfo(ctx context.Context) (*UsageInfo, error) {
 		return nil, fmt.Errorf("no GitHub token available")
 	}
 
-	req, err := http.NewRequestWithContext(ctx, "GET", "https://api.github.com/copilot_internal/v2/token", nil)
+	req, err := http.NewRequestWithContext(ctx, "GET", CopilotUserInfoURL, nil)
 	if err != nil {
 		return nil, err
 	}
-	req.Header.Set("Authorization", "Bearer "+githubToken)
+	req.Header.Set("Authorization", "token "+githubToken)
 	req.Header.Set("User-Agent", copilot.CopilotUserAgent)
+	req.Header.Set("X-GitHub-Api-Version", "2025-04-01")
+	req.Header.Set("Accept", "application/json")
 
 	resp, err := sharedHTTPClient.Do(req)
 	if err != nil {
@@ -238,6 +264,14 @@ func (c *Client) GetUsageInfo(ctx context.Context) (*UsageInfo, error) {
 	if err := json.NewDecoder(resp.Body).Decode(&info); err != nil {
 		return nil, err
 	}
+	normalizeUsageInfo(&info)
 
 	return &info, nil
+}
+
+// normalizeUsageInfo 补齐兼容字段,避免调用方只认旧的 sku 字段。
+func normalizeUsageInfo(info *UsageInfo) {
+	if info != nil && info.SKU == "" {
+		info.SKU = info.AccessTypeSKU
+	}
 }

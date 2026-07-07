@@ -11,7 +11,7 @@ A lightweight Go proxy that exposes GitHub Copilot as OpenAI-compatible and Anth
 - **Streaming Support**: Full SSE streaming for both OpenAI and Anthropic formats
 - **Direct Passthrough**: Each endpoint forwards to the matching Copilot API — send every model to the endpoint its API natively speaks
 - **Auto Authentication**: GitHub Device Flow OAuth with automatic token refresh
-- **Usage Monitoring**: Built-in `/usage` endpoint for quota tracking
+- **Usage Monitoring**: Built-in `/usage` endpoint for Copilot plan and quota snapshots
 - **Models Cache**: 5-minute cache for `/v1/models` and Anthropic model capability lookups
 
 ## Quick Start
@@ -137,7 +137,7 @@ response = client.chat.completions.create(
 | `/v1/models` | GET | List available models (5min cache) |
 | `/v1/embeddings` | POST | Generate embeddings (string or array input) |
 | `/v1/messages` | POST | Anthropic Messages API (streaming & non-streaming) |
-| `/usage` | GET | Copilot usage and quota info |
+| `/usage` | GET | Copilot plan, reset date, and quota snapshots |
 | `/health` | GET | Health check (unauthenticated) |
 
 ## Configuration
