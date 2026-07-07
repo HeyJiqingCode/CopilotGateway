@@ -7,6 +7,12 @@
 - Require an API key for all requests — the proxy now refuses to start without `COPILOT2API_API_KEY` (or `-api-key`). Clients must send the key via `Authorization: Bearer`, `x-api-key`, `x-goog-api-key`, or `?key=`. This makes the proxy safe to expose beyond localhost.
 - Remove AmpCode support — the `/amp/*`, `/api/provider/*`, and `/api/*` reverse-proxy routes are gone
 
+### Removed
+
+- Remove the Gemini-compatible `/v1beta/models` endpoints (`generateContent`, `streamGenerateContent`, `countTokens`) — `gemini-cli` is no longer supported
+- Remove cross-format request conversion — `/v1/chat/completions`, `/v1/responses`, and `/v1/messages` now pass through to the matching upstream endpoint only, instead of smart-routing/translating between Chat Completions, Responses, and Anthropic formats. Send each model to the endpoint its API natively speaks (Codex/GPT → `/v1/responses`, Claude → `/v1/messages`)
+- Remove the `anthropic-beta: context-1m` → `-1m` model-ID rewrite — Copilot's current catalog carries the full context window on the base model ID (no `-1m` variants exist), so the rewrite produced an unknown model. Send the base model ID directly
+
 ### Features
 
 - Add unauthenticated `/health` endpoint for cloud load balancer / k8s readiness probes
@@ -14,6 +20,7 @@
 
 ### Bug Fixes
 
+- Fetch model metadata with VS Code's current `model-access` headers and Copilot API version `2026-06-01`, so `/v1/models` reflects the extended context limits and model picker metadata GitHub exposes for the stored Copilot token
 - Strip `output_config`/`thinking` from native `/v1/messages` requests when the target model doesn't support reasoning effort, fixing a `400 ... does not support reasoning effort` error (e.g. `claude-haiku-4.5` used as a small/fast model by Claude Desktop / Claude Code)
 
 ## [0.3.1] - 2026-04-26

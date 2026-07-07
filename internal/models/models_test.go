@@ -1,8 +1,15 @@
 package models
 
 import (
+	"context"
 	"encoding/json"
+	"net/http"
+	"net/http/httptest"
 	"testing"
+	"time"
+
+	"github.com/whtsky/copilot2api/internal/copilot"
+	"github.com/whtsky/copilot2api/internal/upstream"
 )
 
 func TestPickEndpoint(t *testing.T) {
@@ -196,4 +203,59 @@ func TestInfo_ParsesReasoningEffort(t *testing.T) {
 	if got := byID["claude-haiku-4.5"].Capabilities.Supports.ReasoningEffort; got != nil {
 		t.Errorf("haiku reasoning_effort = %v, want nil", got)
 	}
+}
+
+// TestCacheFetchUsesModelAccessHeaders 锁定 VS Code 模型能力元数据请求头,
+// 防止 /models 回退到旧协议导致 1M context 能力不可见。
+func TestCacheFetchUsesModelAccessHeaders(t *testing.T) {
+	var gotHeaders http.Header
+	fakeUpstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotHeaders = r.Header.Clone()
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"data": []map[string]interface{}{
+				{
+					"id":                  "claude-opus-4.8",
+					"supported_endpoints": []string{"/v1/messages"},
+				},
+			},
+		})
+	}))
+	defer fakeUpstream.Close()
+
+	tp := &stubTokenProvider{baseURL: fakeUpstream.URL}
+	cache := NewCache(upstream.NewClient(tp, nil), time.Minute)
+
+	if _, err := cache.GetRaw(context.Background()); err != nil {
+		t.Fatalf("GetRaw failed: %v", err)
+	}
+
+	expected := map[string]string{
+		"Openai-Intent":        "model-access",
+		"X-Interaction-Type":   "model-access",
+		"X-Github-Api-Version": copilot.APIVersion,
+	}
+	for header, want := range expected {
+		if got := gotHeaders.Get(header); got != want {
+			t.Errorf("%s = %q, want %q", header, got, want)
+		}
+	}
+	if gotHeaders.Get("X-Request-Id") == "" {
+		t.Error("X-Request-Id should be present")
+	}
+	if gotHeaders.Get("X-Agent-Task-Id") == "" {
+		t.Error("X-Agent-Task-Id should be present")
+	}
+}
+
+type stubTokenProvider struct {
+	baseURL string
+}
+
+func (s *stubTokenProvider) GetToken(_ context.Context) (string, error) {
+	return "test-token", nil
+}
+
+func (s *stubTokenProvider) GetBaseURL() string {
+	return s.baseURL
 }

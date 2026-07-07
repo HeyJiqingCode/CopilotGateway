@@ -1,16 +1,15 @@
 # copilot2api
 
-A lightweight Go proxy that exposes GitHub Copilot as OpenAI-compatible, Anthropic-compatible, and Gemini-compatible API endpoints.
+A lightweight Go proxy that exposes GitHub Copilot as OpenAI-compatible and Anthropic-compatible API endpoints.
 
 ## Features
 
 - **OpenAI API Compatible**: `/v1/chat/completions`, `/v1/models`, `/v1/embeddings`, `/v1/responses`
 - **Embeddings Support**: Native OpenAI-compatible `/v1/embeddings` endpoint
 - **Anthropic API Compatible**: `/v1/messages`
-- **Gemini API Compatible**: `/v1beta/models`, `/v1beta/models/{model}:generateContent`, `/v1beta/models/{model}:streamGenerateContent`, `/v1beta/models/{model}:countTokens`
 - **API Key Auth**: Required key for all requests — safe to deploy beyond localhost
 - **Streaming Support**: Full SSE streaming for both OpenAI and Anthropic formats
-- **Anthropic Routing**: Uses native `/v1/messages` when the model supports it, otherwise routes via `/responses` or `/chat/completions`
+- **Direct Passthrough**: Each endpoint forwards to the matching Copilot API — send every model to the endpoint its API natively speaks
 - **Auto Authentication**: GitHub Device Flow OAuth with automatic token refresh
 - **Usage Monitoring**: Built-in `/usage` endpoint for quota tracking
 - **Models Cache**: 5-minute cache for `/v1/models` and Anthropic model capability lookups
@@ -111,11 +110,11 @@ Add to `~/.claude/settings.json`:
 }
 ```
 
-### 1M Context Window
+### Context Window
 
-copilot2api supports Claude 1M context models. When Claude Code sends the `anthropic-beta: context-1m-...` header, the proxy automatically appends `-1m` to the model ID (e.g. `claude-opus-4.6` → `claude-opus-4.6-1m`) so Copilot routes to the 1M variant.
+Newer Claude models on Copilot (e.g. Opus 4.6/4.7/4.8, Sonnet 4.6/5) expose their context limits through the Copilot `/models` catalog on the base model ID. There are no `-1m` model variants to append; send the model ID as-is.
 
-To use it, select the 1M model variant in Claude Code via the `/model` command (e.g. `Opus (1M)`). Without this, Claude Code defaults to the standard 200K context window.
+The `/v1/models` proxy uses VS Code-style model metadata headers (`model-access`) and Copilot API version `2026-06-01`, matching the model catalog shape VS Code currently uses for long-context metadata. If VS Code shows a larger context window than this proxy, check that `COPILOT2API_API_VERSION` is not overridden to an older value.
 
 ## Usage with Codex
 
@@ -132,16 +131,6 @@ name = "copilot2api"
 base_url = "http://127.0.0.1:7777/v1"
 wire_api = "responses"
 api_key = "your-secret-key"
-```
-
-## Usage with Gemini CLI
-
-Add to `~/.gemini/.env`:
-
-```env
-GOOGLE_GEMINI_BASE_URL=http://127.0.0.1:7777
-GEMINI_API_KEY=your-secret-key
-GEMINI_MODEL=claude-opus-4.6-1m
 ```
 
 <details>
@@ -218,10 +207,6 @@ message = client.messages.create(
 | `/v1/models` | GET | List available models (5min cache) |
 | `/v1/embeddings` | POST | Generate embeddings (string or array input) |
 | `/v1/messages` | POST | Anthropic Messages API (streaming & non-streaming) |
-| `/v1beta/models` | GET | List Gemini-compatible models |
-| `/v1beta/models/{model}:generateContent` | POST | Gemini Generate Content |
-| `/v1beta/models/{model}:streamGenerateContent` | POST | Gemini Generate Content streaming SSE |
-| `/v1beta/models/{model}:countTokens` | POST | Gemini token counting estimate |
 | `/usage` | GET | Copilot usage and quota info |
 | `/health` | GET | Health check (unauthenticated) |
 
@@ -251,9 +236,10 @@ Environment variables are used as defaults when flags are not provided:
 | `COPILOT2API_PORT` | Server port | `7777` |
 | `COPILOT2API_TOKEN_DIR` | Token storage directory | `~/.config/copilot2api` |
 | `COPILOT2API_DEBUG` | Enable debug logging (`true`/`false`, `1`/`0`) | `false` |
-| `COPILOT2API_EDITOR_VERSION` | Spoofed editor version header | `vscode/1.124.2` |
-| `COPILOT2API_PLUGIN_VERSION` | Spoofed plugin version header | `copilot-chat/0.52.0` |
-| `COPILOT2API_CHAT_USER_AGENT` | Spoofed Copilot Chat User-Agent | `GitHubCopilotChat/0.52.0` |
+| `COPILOT2API_EDITOR_VERSION` | Spoofed editor version header | `vscode/1.127.0` |
+| `COPILOT2API_PLUGIN_VERSION` | Spoofed plugin version header | `copilot-chat/0.55.0` |
+| `COPILOT2API_CHAT_USER_AGENT` | Spoofed Copilot Chat User-Agent | `GitHubCopilotChat/0.55.0` |
+| `COPILOT2API_API_VERSION` | GitHub Copilot API version header | `2026-06-01` |
 
 CLI flags take precedence over environment variables.
 
@@ -261,9 +247,8 @@ CLI flags take precedence over environment variables.
 
 1. Authenticates with GitHub via Device Flow OAuth
 2. Exchanges GitHub token for Copilot API token (auto-refreshes)
-3. Proxies OpenAI-format requests directly to Copilot API
-4. Routes Anthropic Messages requests by model capabilities (native `/v1/messages`, translated `/responses`, or translated `/chat/completions`)
-5. Automatically detects API endpoint from token (Individual/Business/Enterprise)
+3. Forwards each request straight to the matching Copilot endpoint — OpenAI formats to `/chat/completions`, `/responses`, `/embeddings`; Anthropic to `/v1/messages`
+4. Automatically detects API endpoint from token (Individual/Business/Enterprise)
 
 ## Development
 

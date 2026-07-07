@@ -9,6 +9,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/whtsky/copilot2api/internal/copilot"
 	"github.com/whtsky/copilot2api/internal/upstream"
 	"golang.org/x/sync/singleflight"
 )
@@ -129,8 +130,9 @@ func (c *Cache) get(ctx context.Context) ([]byte, map[string]*Info, error) {
 
 func (c *Cache) fetch(ctx context.Context) (cacheData, error) {
 	_, respData, err := c.upstream.Do(ctx, upstream.Request{
-		Method:   "GET",
-		Endpoint: "/models",
+		Method:       "GET",
+		Endpoint:     "/models",
+		ExtraHeaders: copilot.ModelAccessHeaders(copilot.GenerateRequestID()),
 	})
 	if err != nil {
 		return cacheData{}, fmt.Errorf("models request failed: %w", err)
