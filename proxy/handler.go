@@ -10,23 +10,20 @@ import (
 	"strings"
 	"time"
 
-	"github.com/whtsky/copilot2api/auth"
 	"github.com/whtsky/copilot2api/internal/models"
 	"github.com/whtsky/copilot2api/internal/upstream"
 )
 
 type Handler struct {
 	upstream    *upstream.Client
-	authClient  *auth.Client
 	modelsCache *models.Cache
 }
 
 // NewHandler creates a new proxy handler.
 // The transport is used for upstream HTTP requests (pass nil to create a new one).
-func NewHandler(authClient *auth.Client, transport *http.Transport, mc *models.Cache) *Handler {
+func NewHandler(tokenProvider upstream.TokenProvider, transport *http.Transport, mc *models.Cache) *Handler {
 	return &Handler{
-		upstream:    upstream.NewClient(authClient, transport),
-		authClient:  authClient,
+		upstream:    upstream.NewClient(tokenProvider, transport),
 		modelsCache: mc,
 	}
 }
@@ -156,24 +153,6 @@ func collectForwardHeaders(r *http.Request) map[string]string {
 		}
 	}
 	return headers
-}
-
-// handleUsage returns usage/quota info from the Copilot token response
-func (h *Handler) HandleUsage(w http.ResponseWriter, r *http.Request) {
-	if r.Method != "GET" {
-		WriteOpenAIError(w, http.StatusMethodNotAllowed, OpenAIErrorTypeInvalidRequest, "Method not allowed")
-		return
-	}
-
-	usage, err := h.authClient.GetUsageInfo(r.Context())
-	if err != nil {
-		slog.Error("failed to get usage info", "error", err)
-		WriteOpenAIError(w, http.StatusInternalServerError, OpenAIErrorTypeServerError, "Failed to get usage info")
-		return
-	}
-
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(usage)
 }
 
 // --- OpenAI error response helpers ---

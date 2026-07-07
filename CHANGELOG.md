@@ -11,6 +11,7 @@
 
 - Remove the Gemini-compatible `/v1beta/models` endpoints (`generateContent`, `streamGenerateContent`, `countTokens`) — `gemini-cli` is no longer supported
 - Remove the OpenAI-compatible `/v1/embeddings` endpoint — use a dedicated embedding provider such as Azure AI Foundry instead
+- Remove the `/usage` endpoint — GitHub's available Copilot quota details depend on internal GitHub auth state and were unreliable through this proxy
 - Remove cross-format request conversion — `/v1/chat/completions`, `/v1/responses`, and `/v1/messages` now pass through to the matching upstream endpoint only, instead of smart-routing/translating between Chat Completions, Responses, and Anthropic formats. Send each model to the endpoint its API natively speaks (Codex/GPT → `/v1/responses`, Claude → `/v1/messages`)
 - Remove the `anthropic-beta: context-1m` → `-1m` model-ID rewrite — Copilot's current catalog carries the full context window on the base model ID (no `-1m` variants exist), so the rewrite produced an unknown model. Send the base model ID directly
 
@@ -18,7 +19,6 @@
 
 - Add unauthenticated `/health` endpoint for cloud load balancer / k8s readiness probes
 - Make the spoofed Copilot client version headers configurable via `COPILOT2API_EDITOR_VERSION`, `COPILOT2API_PLUGIN_VERSION`, and `COPILOT2API_CHAT_USER_AGENT`
-- Return Copilot plan and detailed quota snapshots from `/usage`, including reset dates and `premium_interactions` remaining quota
 
 ### Bug Fixes
 

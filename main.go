@@ -142,7 +142,6 @@ func main() {
 	mux.Handle("/v1/models", proxyHandler)
 	mux.Handle("/v1/responses", proxyHandler)
 	mux.Handle("/v1/messages", anthropicHandler)
-	mux.HandleFunc("/usage", proxyHandler.HandleUsage)
 
 	// 健康检查端点 — 免鉴权,供云端负载均衡器/k8s 探针使用
 	mux.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
