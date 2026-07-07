@@ -2,25 +2,7 @@ package anthropic
 
 import (
 	"testing"
-
-	"github.com/whtsky/copilot2api/internal/models"
 )
-
-func TestModelSupportsEndpoint_NormalizedV1Prefix(t *testing.T) {
-	info := &models.Info{SupportedEndpoints: []string{"/messages", "/responses"}}
-
-	if !modelSupportsEndpoint(info, "/v1/messages") {
-		t.Fatal("expected /v1/messages to match /messages")
-	}
-
-	if !modelSupportsEndpoint(info, "/responses") {
-		t.Fatal("expected /responses to be supported")
-	}
-
-	if modelSupportsEndpoint(info, "/v1/chat/completions") {
-		t.Fatal("did not expect /v1/chat/completions to be supported")
-	}
-}
 
 func TestResolveModelAlias(t *testing.T) {
 	tests := []struct {

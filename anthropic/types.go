@@ -3,38 +3,23 @@ package anthropic
 import (
 	"encoding/json"
 	"fmt"
-
-	"github.com/whtsky/copilot2api/internal/types"
 )
 
 // AnthropicMessagesRequest represents an Anthropic Messages API request
 type AnthropicMessagesRequest struct {
-	Model         string                 `json:"model"`
-	MaxTokens     int                    `json:"max_tokens"`
-	System        *AnthropicSystem       `json:"system,omitempty"`
-	Messages      []AnthropicMessage     `json:"messages"`
-	Tools         []AnthropicTool        `json:"tools,omitempty"`
-	ToolChoice    *AnthropicToolChoice   `json:"tool_choice,omitempty"`
-	Temperature   *float64               `json:"temperature,omitempty"`
-	TopP          *float64               `json:"top_p,omitempty"`
-	TopK          *int                   `json:"top_k,omitempty"`
-	StopSequences []string               `json:"stop_sequences,omitempty"`
-	Stream        bool                   `json:"stream,omitempty"`
-	Metadata      map[string]string      `json:"metadata,omitempty"`
-	Thinking      *AnthropicThinking     `json:"thinking,omitempty"`
-	ServiceTier   string                 `json:"service_tier,omitempty"`
-	OutputConfig  *AnthropicOutputConfig `json:"output_config,omitempty"`
-}
-
-// AnthropicThinking represents thinking configuration
-type AnthropicThinking struct {
-	Type         string `json:"type"` // "enabled" or "adaptive"
-	BudgetTokens *int   `json:"budget_tokens,omitempty"`
-}
-
-// AnthropicOutputConfig represents output configuration
-type AnthropicOutputConfig struct {
-	Effort string `json:"effort,omitempty"` // "low", "medium", "high", "max"
+	Model         string               `json:"model"`
+	MaxTokens     int                  `json:"max_tokens"`
+	System        *AnthropicSystem     `json:"system,omitempty"`
+	Messages      []AnthropicMessage   `json:"messages"`
+	Tools         []AnthropicTool      `json:"tools,omitempty"`
+	ToolChoice    *AnthropicToolChoice `json:"tool_choice,omitempty"`
+	Temperature   *float64             `json:"temperature,omitempty"`
+	TopP          *float64             `json:"top_p,omitempty"`
+	TopK          *int                 `json:"top_k,omitempty"`
+	StopSequences []string             `json:"stop_sequences,omitempty"`
+	Stream        bool                 `json:"stream,omitempty"`
+	Metadata      map[string]string    `json:"metadata,omitempty"`
+	ServiceTier   string               `json:"service_tier,omitempty"`
 }
 
 // AnthropicSystem can be string or []AnthropicTextBlock
@@ -189,56 +174,13 @@ type AnthropicUsage struct {
 
 // Streaming event types
 type AnthropicStreamEvent struct {
-	Type         string                         `json:"type"`
-	Message      *AnthropicMessagesResponse     `json:"message,omitempty"`
-	Index        *int                           `json:"index,omitempty"`
-	ContentBlock *AnthropicContentBlock         `json:"content_block,omitempty"`
-	Delta        interface{}                    `json:"delta,omitempty"`
-	Usage        interface{}                    `json:"usage,omitempty"`
-	Error        *AnthropicError                `json:"error,omitempty"`
-}
-
-// AnthropicMessageDelta is the delta payload for message_delta events.
-// Per Anthropic spec: always includes stop_reason and stop_sequence.
-type AnthropicMessageDelta struct {
-	StopReason   string  `json:"stop_reason"`
-	StopSequence *string `json:"stop_sequence"` // always present, null when not applicable
-}
-
-// AnthropicContentDelta is the delta payload for content_block_delta events.
-type AnthropicContentDelta struct {
-	Type        string `json:"type"`                   // "text_delta", "input_json_delta", "thinking_delta", "signature_delta"
-	Text        string `json:"text,omitempty"`
-	PartialJSON string `json:"partial_json,omitempty"`
-	Thinking    string `json:"thinking,omitempty"`
-	Signature   string `json:"signature,omitempty"`
-}
-
-// --- Type aliases for OpenAI types moved to internal/types ---
-// These aliases allow existing anthropic package code to continue using
-// the unqualified type names.
-
-type OpenAIChatCompletionsRequest = types.OpenAIChatCompletionsRequest
-type OpenAIStreamOptions = types.OpenAIStreamOptions
-type OpenAIMessage = types.OpenAIMessage
-type OpenAIContent = types.OpenAIContent
-type OpenAIContentPart = types.OpenAIContentPart
-type OpenAIImageURLPayload = types.OpenAIImageURLPayload
-type OpenAIToolDefinition = types.OpenAIToolDefinition
-type OpenAIFunctionSpec = types.OpenAIFunctionSpec
-type OpenAIToolCall = types.OpenAIToolCall
-type OpenAIToolCallFunction = types.OpenAIToolCallFunction
-type OpenAIChatCompletionsResponse = types.OpenAIChatCompletionsResponse
-type OpenAIChoice = types.OpenAIChoice
-type OpenAIUsage = types.OpenAIUsage
-type OpenAIPromptTokensDetails = types.OpenAIPromptTokensDetails
-type OpenAICompletionTokensDetails = types.OpenAICompletionTokensDetails
-type OpenAIChatCompletionChunk = types.OpenAIChatCompletionChunk
-type OpenAIChunkChoice = types.OpenAIChunkChoice
-
-// AnthropicMessageDeltaUsage is usage info in message_delta (only output_tokens)
-type AnthropicMessageDeltaUsage struct {
-	OutputTokens int `json:"output_tokens"`
+	Type         string                     `json:"type"`
+	Message      *AnthropicMessagesResponse `json:"message,omitempty"`
+	Index        *int                       `json:"index,omitempty"`
+	ContentBlock *AnthropicContentBlock     `json:"content_block,omitempty"`
+	Delta        interface{}                `json:"delta,omitempty"`
+	Usage        interface{}                `json:"usage,omitempty"`
+	Error        *AnthropicError            `json:"error,omitempty"`
 }
 
 // AnthropicErrorResponse represents an error response from the Anthropic API

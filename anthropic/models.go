@@ -25,10 +25,6 @@ var versionHyphenRe = regexp.MustCompile(`([a-zA-Z]-)(\d)-(\d)([^0-9]|$)`)
 // at the end of a model ID (optionally followed by more digits for timestamps).
 var dateSuffixRe = regexp.MustCompile(`-(\d{8,})$`)
 
-// context1mRe matches the "context-1m" token in the anthropic-beta header,
-// used by Claude Code to signal the 1M context window variant.
-var context1mRe = regexp.MustCompile(`\bcontext-1m\b`)
-
 // resolveModelAlias returns the canonical model ID for Copilot's model list.
 // It applies the following transformations in order:
 //  1. Strip date suffixes (e.g. "-20250514")
@@ -68,10 +64,6 @@ func (h *Handler) getModelInfo(ctx context.Context, modelID string) (*models.Inf
 	}
 
 	return infoMap[modelID], false
-}
-
-func modelSupportsEndpoint(info *models.Info, endpoint string) bool {
-	return models.SupportsEndpoint(info, endpoint)
 }
 
 func modelSupportsReasoningEffort(info *models.Info) bool {

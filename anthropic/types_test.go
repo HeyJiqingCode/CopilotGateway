@@ -5,6 +5,9 @@ import (
 	"testing"
 )
 
+// stringPtr 返回字符串指针,便于在测试用例中构造可选字段。
+func stringPtr(s string) *string { return &s }
+
 func TestAnthropicSystem_MarshalUnmarshal(t *testing.T) {
 	tests := []struct {
 		name     string
@@ -133,82 +136,6 @@ func TestAnthropicContent_MarshalUnmarshal(t *testing.T) {
 			}
 
 			// Skip round-trip marshal test for AnthropicContent
-			// The unmarshal works correctly for the expected API input format
-		})
-	}
-}
-
-func TestOpenAIContent_MarshalUnmarshal(t *testing.T) {
-	tests := []struct {
-		name     string
-		input    string
-		expected OpenAIContent
-	}{
-		{
-			name:     "string content",
-			input:    `"Hello world"`,
-			expected: OpenAIContent{Text: stringPtr("Hello world")},
-		},
-		{
-			name:  "parts content",
-			input: `[{"type": "text", "text": "Hello world"}]`,
-			expected: OpenAIContent{
-				Parts: []OpenAIContentPart{
-					{Type: "text", Text: "Hello world"},
-				},
-			},
-		},
-		{
-			name: "mixed parts",
-			input: `[
-				{"type": "text", "text": "Look at this:"},
-				{
-					"type": "image_url",
-					"image_url": {
-						"url": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg=="
-					}
-				}
-			]`,
-			expected: OpenAIContent{
-				Parts: []OpenAIContentPart{
-					{Type: "text", Text: "Look at this:"},
-					{
-						Type: "image_url",
-						ImageURL: &OpenAIImageURLPayload{
-							URL: "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==",
-						},
-					},
-				},
-			},
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			var content OpenAIContent
-			err := json.Unmarshal([]byte(tt.input), &content)
-			if err != nil {
-				t.Fatalf("Failed to unmarshal: %v", err)
-			}
-
-			// Check text
-			if tt.expected.Text != nil {
-				if content.Text == nil || *content.Text != *tt.expected.Text {
-					t.Errorf("Expected text %q, got %v", *tt.expected.Text, content.Text)
-				}
-			} else if content.Text != nil {
-				t.Errorf("Expected nil text, got %q", *content.Text)
-			}
-
-			// Check parts count
-			if len(tt.expected.Parts) != len(content.Parts) {
-				t.Fatalf("Expected %d parts, got %d", len(tt.expected.Parts), len(content.Parts))
-			}
-
-			// Skip round-trip marshal test for OpenAIContent
-			// The unmarshal works correctly for the expected API input format
-
-			// Skip round-trip marshal test for OpenAIContent
 			// The unmarshal works correctly for the expected API input format
 		})
 	}

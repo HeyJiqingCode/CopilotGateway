@@ -15,7 +15,6 @@ import (
 
 	"github.com/whtsky/copilot2api/anthropic"
 	"github.com/whtsky/copilot2api/auth"
-	"github.com/whtsky/copilot2api/gemini"
 	"github.com/whtsky/copilot2api/internal/copilot"
 	"github.com/whtsky/copilot2api/internal/models"
 	"github.com/whtsky/copilot2api/internal/upstream"
@@ -135,9 +134,6 @@ func main() {
 	// Initialize Anthropic handler
 	anthropicHandler := anthropic.NewHandler(authClient, transport, modelsCache)
 
-	// Initialize Gemini handler
-	geminiHandler := gemini.NewHandler(authClient, transport, modelsCache)
-
 	// Set up routes
 	mux := http.NewServeMux()
 
@@ -147,8 +143,6 @@ func main() {
 	mux.Handle("/v1/embeddings", proxyHandler)
 	mux.Handle("/v1/responses", proxyHandler)
 	mux.Handle("/v1/messages", anthropicHandler)
-	mux.Handle("/v1beta/models", geminiHandler)
-	mux.Handle("/v1beta/models/", geminiHandler)
 	mux.HandleFunc("/usage", proxyHandler.HandleUsage)
 
 	// 健康检查端点 — 免鉴权,供云端负载均衡器/k8s 探针使用

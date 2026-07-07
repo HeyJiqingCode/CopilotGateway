@@ -27,14 +27,14 @@ func TestAddCopilotHeaders(t *testing.T) {
 
 	// Test required headers
 	expectedHeaders := map[string]string{
-		"Authorization":         "Bearer " + token,
-		"User-Agent":            copilot.CopilotUserAgent,
-		"Editor-Version":        copilot.EditorVersion,
-		"Editor-Plugin-Version": copilot.EditorPluginVersion,
+		"Authorization":          "Bearer " + token,
+		"User-Agent":             copilot.CopilotUserAgent,
+		"Editor-Version":         copilot.EditorVersion,
+		"Editor-Plugin-Version":  copilot.EditorPluginVersion,
 		"Copilot-Integration-Id": "vscode-chat",
-		"Openai-Intent":         "conversation-agent",
-		"Content-Type":          "application/json",
-		"X-Github-Api-Version":  "2025-04-01",
+		"Openai-Intent":          "conversation-agent",
+		"Content-Type":           "application/json",
+		"X-Github-Api-Version":   copilot.APIVersion,
 	}
 
 	for header, expectedValue := range expectedHeaders {
@@ -48,6 +48,12 @@ func TestAddCopilotHeaders(t *testing.T) {
 	requestID := req.Header.Get("X-Request-Id")
 	if requestID == "" {
 		t.Error("X-Request-Id header should be present")
+	}
+	if interactionType := req.Header.Get("X-Interaction-Type"); interactionType != "conversation-agent" {
+		t.Errorf("X-Interaction-Type = %q, want conversation-agent", interactionType)
+	}
+	if taskID := req.Header.Get("X-Agent-Task-Id"); taskID != requestID {
+		t.Errorf("X-Agent-Task-Id = %q, want request ID %q", taskID, requestID)
 	}
 }
 
@@ -87,9 +93,9 @@ func TestCollectForwardHeaders(t *testing.T) {
 
 func TestIsStreamingRequest_Handler(t *testing.T) {
 	tests := []struct {
-		name      string
-		body      string
-		expected  bool
+		name     string
+		body     string
+		expected bool
 	}{
 		{
 			name:     "streaming request",
