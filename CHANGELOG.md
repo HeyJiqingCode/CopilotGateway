@@ -22,6 +22,7 @@
 
 ### Bug Fixes
 
+- Clear stored GitHub credentials when Copilot token refresh returns 401/403, preventing a revoked token from wedging the container until `credentials.json` is manually deleted
 - Fetch model metadata with VS Code's current `model-access` headers and Copilot API version `2026-06-01`, so `/v1/models` reflects the extended context limits and model picker metadata GitHub exposes for the stored Copilot token
 - Strip `output_config`/`thinking` from native `/v1/messages` requests when the target model doesn't support reasoning effort, fixing a `400 ... does not support reasoning effort` error (e.g. `claude-haiku-4.5` used as a small/fast model by Claude Desktop / Claude Code)
 

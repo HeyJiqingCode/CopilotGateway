@@ -2,6 +2,7 @@ package auth
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"log/slog"
@@ -16,6 +17,22 @@ const (
 	CopilotTokenURL = "https://api.github.com/copilot_internal/v2/token"
 	DefaultBaseURL  = "https://api.individual.githubcopilot.com"
 )
+
+type CopilotTokenStatusError struct {
+	StatusCode int
+}
+
+func (e *CopilotTokenStatusError) Error() string {
+	return fmt.Sprintf("copilot token request failed with status %d", e.StatusCode)
+}
+
+func IsAuthStatusError(err error) bool {
+	var statusErr *CopilotTokenStatusError
+	if !errors.As(err, &statusErr) {
+		return false
+	}
+	return statusErr.StatusCode == http.StatusUnauthorized || statusErr.StatusCode == http.StatusForbidden
+}
 
 // sharedHTTPClient is reused across the auth package to enable connection pooling.
 var sharedHTTPClient = &http.Client{Timeout: 30 * time.Second}
@@ -53,7 +70,7 @@ func GetCopilotToken(accessToken string) (*CopilotToken, error) {
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("copilot token request failed with status %d", resp.StatusCode)
+		return nil, &CopilotTokenStatusError{StatusCode: resp.StatusCode}
 	}
 
 	body, err := io.ReadAll(resp.Body)

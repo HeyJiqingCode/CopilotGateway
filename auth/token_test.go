@@ -1,6 +1,8 @@
 package auth
 
 import (
+	"errors"
+	"net/http"
 	"testing"
 	"time"
 )
@@ -48,6 +50,27 @@ func TestExtractBaseURLFromToken(t *testing.T) {
 			result := ExtractBaseURLFromToken(tt.token)
 			if result != tt.expected {
 				t.Errorf("ExtractBaseURLFromToken(%q) = %q, want %q", tt.token, result, tt.expected)
+			}
+		})
+	}
+}
+
+func TestIsAuthStatusError(t *testing.T) {
+	tests := []struct {
+		name string
+		err  error
+		want bool
+	}{
+		{name: "401", err: &CopilotTokenStatusError{StatusCode: http.StatusUnauthorized}, want: true},
+		{name: "403", err: &CopilotTokenStatusError{StatusCode: http.StatusForbidden}, want: true},
+		{name: "500", err: &CopilotTokenStatusError{StatusCode: http.StatusInternalServerError}, want: false},
+		{name: "wrapped 401", err: errors.New("plain"), want: false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := IsAuthStatusError(tt.err); got != tt.want {
+				t.Fatalf("IsAuthStatusError() = %v, want %v", got, tt.want)
 			}
 		})
 	}

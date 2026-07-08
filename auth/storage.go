@@ -12,7 +12,7 @@ type TokenStorage struct {
 }
 
 type StoredCredentials struct {
-	GitHubToken  string       `json:"github_token"`
+	GitHubToken  string        `json:"github_token"`
 	CopilotToken *CopilotToken `json:"copilot_token,omitempty"`
 }
 

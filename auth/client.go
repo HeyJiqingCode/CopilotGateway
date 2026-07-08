@@ -151,7 +151,6 @@ func (c *Client) performDeviceFlow() error {
 
 	fmt.Printf("\n✅ Authentication successful!\n\n")
 
-	// Store GitHub token
 	c.mu.Lock()
 	c.creds.GitHubToken = accessToken
 	c.mu.Unlock()
@@ -174,6 +173,12 @@ func (c *Client) refreshCopilotToken() error {
 
 	copilotToken, err := GetCopilotToken(githubToken)
 	if err != nil {
+		if IsAuthStatusError(err) {
+			slog.Warn("stored GitHub token is no longer accepted; clearing credentials")
+			if clearErr := c.clearStoredTokens(); clearErr != nil {
+				slog.Warn("failed to clear invalid credentials", "error", clearErr)
+			}
+		}
 		return fmt.Errorf("failed to get copilot token: %w", err)
 	}
 
@@ -188,5 +193,18 @@ func (c *Client) refreshCopilotToken() error {
 	}
 
 	slog.Info("copilot token refreshed", "expires_at", copilotToken.ExpiresAt, "base_url", copilotToken.BaseURL, "duration_ms", time.Since(start).Milliseconds())
+	return nil
+}
+
+func (c *Client) clearStoredTokens() error {
+	c.mu.Lock()
+	c.creds.GitHubToken = ""
+	c.creds.CopilotToken = nil
+	credsCopy := *c.creds
+	c.mu.Unlock()
+
+	if err := c.storage.SaveCredentials(&credsCopy); err != nil {
+		return fmt.Errorf("failed to save cleared credentials: %w", err)
+	}
 	return nil
 }
