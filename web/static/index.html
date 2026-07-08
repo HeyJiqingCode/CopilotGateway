@@ -53,8 +53,8 @@
         </button>
 
         <div x-show="open === m.id" x-cloak class="px-5 pb-5">
-          <div class="border-l-2 border-indigo-100 pl-4 grid grid-cols-1 sm:grid-cols-2 gap-x-8 gap-y-4 text-sm">
-            <section>
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-x-8 gap-y-4 text-sm">
+            <section class="border-l-2 border-indigo-200 pl-4">
               <h3 class="text-xs font-medium text-gray-400 uppercase tracking-wide mb-2">能力</h3>
               <dl class="space-y-1">
                 <template x-for="row in capabilityRows(m)" :key="row.label">
@@ -65,7 +65,7 @@
                 </template>
               </dl>
             </section>
-            <section>
+            <section class="border-l-2 border-emerald-200 pl-4">
               <h3 class="text-xs font-medium text-gray-400 uppercase tracking-wide mb-2">计费与限制</h3>
               <dl class="space-y-1">
                 <template x-for="row in billingRows(m)" :key="row.label">
@@ -101,7 +101,34 @@ function modelsPage() {
         }
         const body = await resp.json();
         // 只展示当前代际的聊天模型(picker 启用),隐藏上游目录里的历史遗留条目
-        this.models = (body.data || []).filter(m => m.model_picker_enabled && m.capabilities?.type === 'chat');
+        const list = (body.data || []).filter(m => m.model_picker_enabled && m.capabilities?.type === 'chat');
+        // 系列划分:gpt 开头统一算 GPT 系列;Claude 按 opus/sonnet/haiku/fable 子系列拆分。
+        // 每个系列只保留版本最新的一个;同版本优先正式版(非 preview)。
+        const seriesOf = id => {
+          if (/^gpt/.test(id)) return 'gpt';
+          const c = /^claude-([a-z]+)/.exec(id);
+          return c ? 'claude-' + c[1] : id;
+        };
+        const verOf = id => { const t = /(\d+(?:\.\d+)?)/.exec(id); return t ? parseFloat(t[1]) : 0; };
+        // 同系列取舍:版本高者胜;同版本正式版优先;再同则 id 短者(基础版)优先,最后字母序兜底
+        const better = (a, b) => {
+          if (verOf(a.id) !== verOf(b.id)) return verOf(a.id) > verOf(b.id);
+          if (!!a.preview !== !!b.preview) return !a.preview;
+          if (a.id.length !== b.id.length) return a.id.length < b.id.length;
+          return a.id.localeCompare(b.id) < 0;
+        };
+        const bySeries = new Map();
+        for (const m of list) {
+          const key = seriesOf(m.id);
+          const cur = bySeries.get(key);
+          if (!cur || better(m, cur)) bySeries.set(key, m);
+        }
+        // 排序:厂商字母序分组,组内按输入价格降序(旗舰→轻量),同价按 id 字母序
+        const priceOf = m => m.billing?.token_prices?.default?.input_price ?? 0;
+        this.models = [...bySeries.values()].sort((a, b) =>
+          (a.vendor || '').localeCompare(b.vendor || '') ||
+          (priceOf(b) - priceOf(a)) ||
+          a.id.localeCompare(b.id));
         this.cachedAt = body.cached_at;
       } catch (e) {
         this.error = '加载失败:' + e;
