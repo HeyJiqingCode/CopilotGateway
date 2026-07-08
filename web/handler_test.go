@@ -193,6 +193,42 @@ func TestSessionEndpointAndLogout(t *testing.T) {
 	})
 }
 
+func TestConfigEndpoint(t *testing.T) {
+	mux := http.NewServeMux()
+	cfg := testConfig()
+	cfg.APIKeys = []string{"sk-demo-1", "sk-demo-2"}
+	NewHandler(cfg, stubModels{}).Register(mux)
+
+	t.Run("without session returns 401", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodGet, "/web/api/config", nil)
+		rec := httptest.NewRecorder()
+		mux.ServeHTTP(rec, req)
+		if rec.Code != http.StatusUnauthorized {
+			t.Errorf("status = %d, want 401", rec.Code)
+		}
+	})
+
+	t.Run("with session returns api keys", func(t *testing.T) {
+		c := doLogin(t, mux, "admin", "pass123")
+		req := httptest.NewRequest(http.MethodGet, "/web/api/config", nil)
+		req.AddCookie(c)
+		rec := httptest.NewRecorder()
+		mux.ServeHTTP(rec, req)
+		if rec.Code != http.StatusOK {
+			t.Fatalf("status = %d, want 200", rec.Code)
+		}
+		var got struct {
+			APIKeys []string `json:"api_keys"`
+		}
+		if err := json.Unmarshal(rec.Body.Bytes(), &got); err != nil {
+			t.Fatal(err)
+		}
+		if len(got.APIKeys) != 2 || got.APIKeys[0] != "sk-demo-1" {
+			t.Errorf("api_keys = %v, want [sk-demo-1 sk-demo-2]", got.APIKeys)
+		}
+	})
+}
+
 func TestModelsEndpoint(t *testing.T) {
 	upstreamRaw := []byte(`{"object":"list","data":[{"id":"claude-fable-5","name":"Claude Fable 5"}]}`)
 	fixedAt := time.Date(2026, 7, 8, 12, 0, 0, 0, time.UTC)

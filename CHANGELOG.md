@@ -18,6 +18,7 @@
 ### Features
 
 - Add a login-protected web page at `/` showing the current model lineup from the upstream catalog (picker-enabled chat models only, overview with expandable per-model details). Enabled only when both `COPILOT2API_WEB_USERNAME` and `COPILOT2API_WEB_PASSWORD` are set; session length configurable via `COPILOT2API_WEB_SESSION_HOURS` (default 24). New paths `/`, `/login`, `/auth/*`, `/web/*` bypass API-key auth and use cookie sessions instead; `/v1/*` behavior is unchanged
+- Web page shows connection info (endpoint URL and gateway API keys) with one-click copy for logged-in users, plus richer per-model detail rows (vision size/format limits)
 - Add unauthenticated `/health` endpoint for cloud load balancer / k8s readiness probes
 - Make the spoofed Copilot client version headers configurable via `COPILOT2API_EDITOR_VERSION`, `COPILOT2API_PLUGIN_VERSION`, and `COPILOT2API_CHAT_USER_AGENT`
 

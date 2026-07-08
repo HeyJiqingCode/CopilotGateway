@@ -9,7 +9,7 @@
 <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3/dist/cdn.min.js"></script>
 </head>
 <body class="bg-gray-50 min-h-screen font-sans text-gray-900">
-<div x-data="modelsPage()" x-init="load()" class="max-w-5xl mx-auto px-4 py-10">
+<div x-data="modelsPage()" x-init="load(); loadConfig()" class="max-w-5xl mx-auto px-4 py-10">
 
   <header class="flex items-end justify-between mb-6">
     <div>
@@ -26,6 +26,32 @@
   <template x-if="error">
     <div class="bg-white border border-red-200 text-red-700 rounded-xl p-4 mb-6 text-sm break-words" x-text="error"></div>
   </template>
+
+  <div x-show="apiKeys.length" x-cloak class="bg-white rounded-2xl border border-gray-200 px-5 py-4 mb-6">
+    <h2 class="text-xs font-medium text-gray-400 uppercase tracking-wide mb-3">接入信息</h2>
+    <dl class="space-y-2 text-sm">
+      <div class="flex items-center justify-between gap-4">
+        <dt class="text-gray-500 shrink-0">Endpoint</dt>
+        <dd class="flex items-center gap-2 min-w-0">
+          <span class="font-mono text-gray-900 truncate" x-text="endpoint" :title="endpoint"></span>
+          <button @click="copy(endpoint, 'ep')"
+            class="shrink-0 text-xs px-2 py-1 rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50 hover:text-indigo-600 transition-colors"
+            x-text="copied === 'ep' ? '已复制' : '复制'"></button>
+        </dd>
+      </div>
+      <template x-for="(k, i) in apiKeys" :key="k">
+        <div class="flex items-center justify-between gap-4">
+          <dt class="text-gray-500 shrink-0">API Key</dt>
+          <dd class="flex items-center gap-2 min-w-0">
+            <span class="font-mono text-gray-900 truncate" x-text="mask(k)"></span>
+            <button @click="copy(k, 'key' + i)"
+              class="shrink-0 text-xs px-2 py-1 rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50 hover:text-indigo-600 transition-colors"
+              x-text="copied === 'key' + i ? '已复制' : '复制'"></button>
+          </dd>
+        </div>
+      </template>
+    </dl>
+  </div>
 
   <div x-show="models.length" x-cloak
     class="bg-white rounded-2xl border border-gray-200 divide-y divide-gray-100 overflow-hidden">
@@ -89,6 +115,28 @@
 function modelsPage() {
   return {
     models: [], cachedAt: null, error: '', open: null,
+    endpoint: location.origin, apiKeys: [], copied: '',
+
+    // 接入信息独立加载,失败只在控制台告警,不阻塞模型列表
+    async loadConfig() {
+      try {
+        const resp = await fetch('/web/api/config');
+        if (resp.ok) {
+          const body = await resp.json();
+          this.apiKeys = body.api_keys || [];
+        }
+      } catch (e) { console.warn('接入信息加载失败:', e); }
+    },
+
+    mask(k) { return k.length > 14 ? k.slice(0, 10) + '…' + k.slice(-4) : k; },
+
+    async copy(text, tag) {
+      try {
+        await navigator.clipboard.writeText(text);
+        this.copied = tag;
+        setTimeout(() => { if (this.copied === tag) this.copied = ''; }, 1500);
+      } catch (e) { console.warn('复制失败:', e); }
+    },
 
     async load() {
       try {
@@ -164,9 +212,11 @@ function modelsPage() {
         rows.push({ label: '思考预算', value: this.fmt(s.min_thinking_budget) + ' – ' + this.fmt(s.max_thinking_budget) });
       }
       if (s.vision) {
-        rows.push({ label: '视觉', value: '最多 ' + this.fmt(lim.vision?.max_prompt_images) + ' 张图' });
+        const v = lim.vision || {};
+        const mb = v.max_prompt_image_size ? '单张 ≤' + (v.max_prompt_image_size / 1048576).toFixed(0) + 'MB' : null;
+        const types = (v.supported_media_types || []).map(t => t.split('/')[1]).join('/');
+        rows.push({ label: '视觉', value: ['最多 ' + this.fmt(v.max_prompt_images) + ' 张', mb, types || null].filter(Boolean).join(' · ') });
       }
-      rows.push({ label: 'Tokenizer', value: m.capabilities?.tokenizer || '—' });
       return rows;
     },
 

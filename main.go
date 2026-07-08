@@ -153,6 +153,7 @@ func main() {
 	// Web UI:仅当同时配置了用户名和密码时才注册路由,
 	// 未配置时这些路径落到 mux 的 404,不暴露任何页面。
 	if webCfg, ok := web.ConfigFromEnv(); ok {
+		webCfg.APIKeys = apiKeys
 		web.NewHandler(webCfg, modelsCache).Register(mux)
 		slog.Info("web ui enabled", "session_hours", webCfg.SessionHours)
 	}

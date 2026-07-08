@@ -20,6 +20,8 @@ type Config struct {
 	Username     string
 	Password     string
 	SessionHours int
+	// APIKeys 供页面「接入信息」展示与复制,由 main 注入(与网关鉴权同一份)。
+	APIKeys []string
 }
 
 // ConfigFromEnv 从环境变量读取配置;用户名或密码缺失时返回 false(web 不启用)。
@@ -63,6 +65,7 @@ func (h *Handler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("POST /auth/logout", h.handleLogout)
 	mux.HandleFunc("GET /auth/session", h.handleSession)
 	mux.HandleFunc("GET /web/api/models", h.handleModels)
+	mux.HandleFunc("GET /web/api/config", h.handleConfig)
 }
 
 // currentUser 从会话 cookie 解析当前登录用户。
@@ -156,6 +159,15 @@ func (h *Handler) handleModels(w http.ResponseWriter, r *http.Request) {
 		CachedAt time.Time       `json:"cached_at"`
 		Data     json.RawMessage `json:"data"`
 	}{h.models.CachedAt(), upstreamBody.Data})
+}
+
+// handleConfig 返回接入信息(API key 仅对已登录会话下发)。
+func (h *Handler) handleConfig(w http.ResponseWriter, r *http.Request) {
+	if _, ok := h.currentUser(r); !ok {
+		writeJSON(w, http.StatusUnauthorized, map[string]string{"error": "需要登录后访问"})
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"api_keys": h.cfg.APIKeys})
 }
 
 // validCredentials 用常量时间比较校验凭据,两个字段都比较后再合并结果。
