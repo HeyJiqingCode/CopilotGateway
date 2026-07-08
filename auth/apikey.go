@@ -8,10 +8,10 @@ import (
 
 // APIKeyAuth 是一个鉴权中间件:校验请求是否携带有效密钥。
 // keys 为允许的密钥集合(启动时从配置加载,调用方保证非空)。
-// /health 直接放行,供云端探针使用。
+// /health 与 web UI 路径直接放行(见 isAuthExempt)。
 func APIKeyAuth(keys []string, next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path == "/health" {
+		if isAuthExempt(r.URL.Path) {
 			next.ServeHTTP(w, r)
 			return
 		}
@@ -74,4 +74,15 @@ func ParseAPIKeys(raw string) []string {
 		}
 	}
 	return keys
+}
+
+// isAuthExempt 判断路径是否豁免 API key 校验。
+// /health 供云端探针;web UI 路径(页面/登录/会话/数据端点)由 web 包的
+// Cookie 会话守卫,web 未启用时这些路径在 mux 落到 404。
+func isAuthExempt(path string) bool {
+	switch path {
+	case "/health", "/", "/login":
+		return true
+	}
+	return strings.HasPrefix(path, "/auth/") || strings.HasPrefix(path, "/web/")
 }

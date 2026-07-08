@@ -97,6 +97,46 @@ func TestAPIKeyAuth(t *testing.T) {
 			wantStatus: http.StatusUnauthorized,
 			wantPassed: false,
 		},
+		{
+			name:       "web root bypasses api key auth",
+			keys:       []string{testKey},
+			setup:      func(r *http.Request) {},
+			path:       "/",
+			wantStatus: http.StatusOK,
+			wantPassed: true,
+		},
+		{
+			name:       "login page bypasses api key auth",
+			keys:       []string{testKey},
+			setup:      func(r *http.Request) {},
+			path:       "/login",
+			wantStatus: http.StatusOK,
+			wantPassed: true,
+		},
+		{
+			name:       "auth endpoints bypass api key auth",
+			keys:       []string{testKey},
+			setup:      func(r *http.Request) {},
+			path:       "/auth/login",
+			wantStatus: http.StatusOK,
+			wantPassed: true,
+		},
+		{
+			name:       "web data endpoint bypasses api key auth",
+			keys:       []string{testKey},
+			setup:      func(r *http.Request) {},
+			path:       "/web/api/models",
+			wantStatus: http.StatusOK,
+			wantPassed: true,
+		},
+		{
+			name:       "prefix-similar path still requires key",
+			keys:       []string{testKey},
+			setup:      func(r *http.Request) {},
+			path:       "/authx",
+			wantStatus: http.StatusUnauthorized,
+			wantPassed: false,
+		},
 	}
 
 	for _, tt := range tests {
