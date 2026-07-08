@@ -81,50 +81,65 @@
               <span x-show="m.vendor" :class="vendorClass(m.vendor)"
                 class="text-xs px-1.5 py-0.5 rounded-md" x-text="m.vendor"></span>
             </div>
-            <div class="text-xs text-gray-500 font-mono mt-0.5 break-words" x-text="m.id"></div>
+            <div class="flex items-center gap-3 flex-wrap mt-0.5 text-xs">
+              <span class="text-gray-500 font-mono break-words" x-text="m.id"></span>
+              <span class="text-gray-400">输入/输出/缓存读/缓存写
+                <span class="text-gray-700 font-medium" x-text="priceLine(m)"></span>
+              </span>
+            </div>
           </div>
           <div class="text-right text-xs text-gray-600 shrink-0 space-y-1">
             <div>上下文 <span class="font-medium text-gray-900" x-text="fmt(m.capabilities?.limits?.max_context_window_tokens)"></span></div>
             <div class="flex justify-end gap-1 flex-wrap">
-              <template x-for="ep in (m.supported_endpoints || [])" :key="ep">
+              <template x-for="ep in endpoints(m)" :key="ep">
                 <span class="px-1.5 py-0.5 rounded-md" :class="epClass(ep)" x-text="ep"></span>
               </template>
               <span x-show="!(m.supported_endpoints || []).length" class="text-gray-400">—</span>
             </div>
           </div>
         </button>
-
-        <div x-show="open === m.id" x-cloak class="px-5 pb-5">
-          <div class="grid grid-cols-1 sm:grid-cols-2 gap-x-8 gap-y-4 text-sm">
-            <section class="border-l-2 border-indigo-200 pl-4">
-              <h3 class="text-xs font-medium text-gray-400 uppercase tracking-wide mb-2">能力</h3>
-              <dl class="space-y-1">
-                <template x-for="row in capabilityRows(m)" :key="row.label">
-                  <div class="flex justify-between gap-4">
-                    <dt class="text-gray-500" x-text="row.label"></dt>
-                    <dd class="text-gray-900 text-right break-words" x-text="row.value"></dd>
-                  </div>
-                </template>
-              </dl>
-            </section>
-            <section class="border-l-2 border-emerald-200 pl-4">
-              <h3 class="text-xs font-medium text-gray-400 uppercase tracking-wide mb-2">计费与限制</h3>
-              <dl class="space-y-1">
-                <template x-for="row in billingRows(m)" :key="row.label">
-                  <div class="flex justify-between gap-4">
-                    <dt class="text-gray-500" x-text="row.label"></dt>
-                    <dd class="text-gray-900 text-right break-words" x-text="row.value"></dd>
-                  </div>
-                </template>
-              </dl>
-            </section>
-          </div>
-        </div>
       </div>
     </template>
   </div>
 
   <p x-show="!models.length && !error" class="text-sm text-gray-400 text-center py-16">加载中…</p>
+
+  <!-- 模型详情弹窗:点击行打开,遮罩/ESC/✕ 关闭 -->
+  <div x-show="openModel" x-cloak @keydown.escape.window="open = null"
+    class="fixed inset-0 z-50 flex items-center justify-center p-4">
+    <div class="absolute inset-0 bg-gray-900/40" @click="open = null"></div>
+    <div x-show="openModel" x-transition
+      class="relative bg-white rounded-2xl shadow-xl w-full max-w-xl p-6">
+      <template x-if="openModel">
+        <div>
+          <div class="flex items-start justify-between gap-4">
+            <div class="min-w-0">
+              <div class="flex items-center gap-2 flex-wrap">
+                <h2 class="text-lg font-semibold" x-text="openModel.name || openModel.id"></h2>
+                <span x-show="openModel.preview"
+                  class="text-xs px-1.5 py-0.5 rounded-md bg-amber-50 text-amber-700">preview</span>
+                <span x-show="openModel.vendor" :class="vendorClass(openModel.vendor)"
+                  class="text-xs px-1.5 py-0.5 rounded-md" x-text="openModel.vendor"></span>
+              </div>
+              <div class="text-xs text-gray-500 font-mono mt-0.5 break-words" x-text="openModel.id"></div>
+            </div>
+            <button @click="open = null" aria-label="关闭"
+              class="shrink-0 p-1.5 -m-1 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors">
+              <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg>
+            </button>
+          </div>
+          <dl class="mt-5 space-y-2 text-sm">
+            <template x-for="row in capabilityRows(openModel)" :key="row.label">
+              <div class="grid grid-cols-[7.5rem_1fr] gap-3">
+                <dt class="text-gray-500" x-text="row.label"></dt>
+                <dd class="text-gray-900 text-right break-words" x-text="row.value"></dd>
+              </div>
+            </template>
+          </dl>
+        </div>
+      </template>
+    </div>
+  </div>
 </div>
 
 <script>
@@ -135,6 +150,8 @@ function modelsPage() {
 
     // 展示列表:默认精选视图(每系列最新),可切换为上游完整目录
     get models() { return this.showAll ? this.all : this.curated; },
+    // 弹窗当前展示的模型(open 存 id)
+    get openModel() { return this.open ? this.all.find(m => m.id === this.open) || null : null; },
 
     // 接入信息独立加载,失败只在控制台告警,不阻塞模型列表
     async loadConfig() {
@@ -224,6 +241,13 @@ function modelsPage() {
       return map[v] || 'bg-purple-50 text-purple-700';
     },
 
+    // 端点固定排序:不同模型展示顺序一致,未知端点按字母序垫底
+    endpoints(m) {
+      const order = ['/v1/messages', '/chat/completions', '/responses', 'ws:/responses'];
+      const rank = ep => { const i = order.indexOf(ep); return i < 0 ? order.length : i; };
+      return [...(m.supported_endpoints || [])].sort((a, b) => rank(a) - rank(b) || a.localeCompare(b));
+    },
+
     // 端点分色:各 API 形态一眼可辨,未知端点灰色兜底
     epClass(ep) {
       const map = {
@@ -257,17 +281,11 @@ function modelsPage() {
       return rows;
     },
 
-    billingRows(m) {
+    // 标题下的价格行:输入/输出/缓存读/缓存写,单位美元每 1M token
+    priceLine(m) {
       const p = m.billing?.token_prices?.default || {};
-      const rows = [
-        { label: '输入 / 1M', value: this.price(p.input_price) },
-        { label: '输出 / 1M', value: this.price(p.output_price) },
-        { label: '缓存读 / 1M', value: this.price(p.cache_price) },
-        { label: '缓存写 / 1M', value: this.price(p.cache_write_price) },
-      ];
-      const plans = m.billing?.restricted_to;
-      rows.push({ label: '套餐限制', value: (plans && plans.length) ? plans.join(', ') : '无限制' });
-      return rows;
+      return [p.input_price, p.output_price, p.cache_price, p.cache_write_price]
+        .map(v => this.price(v)).join(' / ');
     },
   };
 }
