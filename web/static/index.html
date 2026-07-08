@@ -83,10 +83,14 @@
             </div>
             <div class="text-xs text-gray-500 font-mono mt-0.5 break-words" x-text="m.id"></div>
           </div>
-          <div class="text-right text-xs text-gray-600 shrink-0 space-y-0.5">
+          <div class="text-right text-xs text-gray-600 shrink-0 space-y-1">
             <div>上下文 <span class="font-medium text-gray-900" x-text="fmt(m.capabilities?.limits?.max_context_window_tokens)"></span></div>
-            <div>输出 <span class="font-medium text-gray-900" x-text="fmt(m.capabilities?.limits?.max_output_tokens)"></span></div>
-            <div class="text-gray-400" x-text="(m.supported_endpoints || []).join(' · ') || '—'"></div>
+            <div class="flex justify-end gap-1 flex-wrap">
+              <template x-for="ep in (m.supported_endpoints || [])" :key="ep">
+                <span class="px-1.5 py-0.5 rounded-md" :class="epClass(ep)" x-text="ep"></span>
+              </template>
+              <span x-show="!(m.supported_endpoints || []).length" class="text-gray-400">—</span>
+            </div>
           </div>
         </button>
 
@@ -220,10 +224,22 @@ function modelsPage() {
       return map[v] || 'bg-purple-50 text-purple-700';
     },
 
+    // 端点分色:各 API 形态一眼可辨,未知端点灰色兜底
+    epClass(ep) {
+      const map = {
+        '/v1/messages': 'bg-orange-50 text-orange-700',
+        '/chat/completions': 'bg-blue-50 text-blue-700',
+        '/responses': 'bg-emerald-50 text-emerald-700',
+        'ws:/responses': 'bg-purple-50 text-purple-700',
+      };
+      return map[ep] || 'bg-gray-100 text-gray-600';
+    },
+
     capabilityRows(m) {
       const s = m.capabilities?.supports || {};
       const lim = m.capabilities?.limits || {};
       const rows = [
+        { label: '最大输入/输出', value: this.fmt(lim.max_prompt_tokens) + ' / ' + this.fmt(lim.max_output_tokens) },
         { label: '工具调用', value: s.tool_calls ? '支持' + (s.parallel_tool_calls ? '(可并行)' : '') : '—' },
         { label: '结构化输出', value: s.structured_outputs ? '支持' : '—' },
         { label: '流式', value: s.streaming ? '支持' : '—' },
@@ -248,7 +264,6 @@ function modelsPage() {
         { label: '输出 / 1M', value: this.price(p.output_price) },
         { label: '缓存读 / 1M', value: this.price(p.cache_price) },
         { label: '缓存写 / 1M', value: this.price(p.cache_write_price) },
-        { label: '最大输入', value: this.fmt(m.capabilities?.limits?.max_prompt_tokens) },
       ];
       const plans = m.billing?.restricted_to;
       rows.push({ label: '套餐限制', value: (plans && plans.length) ? plans.join(', ') : '无限制' });
