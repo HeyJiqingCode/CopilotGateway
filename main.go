@@ -19,6 +19,7 @@ import (
 	"github.com/whtsky/copilot2api/internal/models"
 	"github.com/whtsky/copilot2api/internal/upstream"
 	"github.com/whtsky/copilot2api/proxy"
+	"github.com/whtsky/copilot2api/web"
 )
 
 var version = "dev"
@@ -148,6 +149,13 @@ func main() {
 		w.Header().Set("Content-Type", "application/json")
 		w.Write([]byte(`{"status":"ok"}`))
 	})
+
+	// Web UI:仅当同时配置了用户名和密码时才注册路由,
+	// 未配置时这些路径落到 mux 的 404,不暴露任何页面。
+	if webCfg, ok := web.ConfigFromEnv(); ok {
+		web.NewHandler(webCfg, modelsCache).Register(mux)
+		slog.Info("web ui enabled", "session_hours", webCfg.SessionHours)
+	}
 
 	// Pre-warm models cache to avoid cold-cache latency on first request
 	go func() {
