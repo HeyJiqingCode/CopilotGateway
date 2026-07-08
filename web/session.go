@@ -3,6 +3,7 @@ package web
 
 import (
 	"crypto/rand"
+	"crypto/subtle"
 	"sync"
 	"time"
 )
@@ -61,4 +62,9 @@ func (s *sessionStore) Delete(token string) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	delete(s.sessions, token)
+}
+
+// constantTimeEquals 常量时间字符串比较,防时序侧信道。
+func constantTimeEquals(a, b string) bool {
+	return subtle.ConstantTimeCompare([]byte(a), []byte(b)) == 1
 }
