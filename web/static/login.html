@@ -1,3 +1,54 @@
 <!DOCTYPE html>
-<html lang="zh-CN"><head><meta charset="utf-8"><title>登录 · copilot2api</title></head>
-<body><h1>登录</h1></body></html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="icon" href="data:,">
+<title>登录 · Copilot2API</title>
+<script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-50 min-h-screen flex items-center justify-center font-sans text-gray-900">
+<main class="w-full max-w-sm px-4">
+  <div class="bg-white rounded-2xl border border-gray-200 p-8">
+    <h1 class="text-xl font-semibold text-center">Copilot2API</h1>
+    <p class="text-sm text-gray-500 text-center mt-1 mb-6">Lightweight GitHub Copilot Proxy</p>
+    <form id="login-form" class="space-y-4">
+      <div>
+        <label for="username" class="block text-sm text-gray-600 mb-1">用户名</label>
+        <input id="username" name="username" type="text" required autocomplete="username"
+          class="w-full rounded-xl border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-600 focus:border-transparent">
+      </div>
+      <div>
+        <label for="password" class="block text-sm text-gray-600 mb-1">密码</label>
+        <input id="password" name="password" type="password" required autocomplete="current-password"
+          class="w-full rounded-xl border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-600 focus:border-transparent">
+      </div>
+      <p id="error" class="hidden text-sm text-red-600 break-words"></p>
+      <button type="submit"
+        class="w-full rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium py-2.5 transition-colors">
+        登录
+      </button>
+    </form>
+  </div>
+</main>
+<script>
+document.getElementById('login-form').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const err = document.getElementById('error');
+  err.classList.add('hidden');
+  const resp = await fetch('/auth/login', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      username: document.getElementById('username').value.trim(),
+      password: document.getElementById('password').value,
+    }),
+  }).catch(() => null);
+  if (resp && resp.ok) { location.href = '/'; return; }
+  const body = resp ? await resp.json().catch(() => ({})) : {};
+  err.textContent = body.error || '登录失败,请重试';
+  err.classList.remove('hidden');
+});
+</script>
+</body>
+</html>

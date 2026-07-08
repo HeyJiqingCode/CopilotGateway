@@ -1,3 +1,163 @@
 <!DOCTYPE html>
-<html lang="zh-CN"><head><meta charset="utf-8"><title>模型目录 · copilot2api</title></head>
-<body><h1>模型目录</h1></body></html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="icon" href="data:,">
+<title>模型目录 · Copilot2API</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3/dist/cdn.min.js"></script>
+</head>
+<body class="bg-gray-50 min-h-screen font-sans text-gray-900">
+<div x-data="modelsPage()" x-init="load()" class="max-w-5xl mx-auto px-4 py-10">
+
+  <header class="flex items-end justify-between mb-6">
+    <div>
+      <h1 class="text-2xl font-semibold tracking-tight">模型目录</h1>
+      <p class="text-sm text-gray-500 mt-1">
+        Copilot2API · 数据来自上游 /models
+        <span x-show="cachedAt">· 缓存于 <span x-text="new Date(cachedAt).toLocaleString()"></span></span>
+      </p>
+    </div>
+    <button @click="logout()"
+      class="text-sm text-gray-500 hover:text-red-600 transition-colors">退出登录</button>
+  </header>
+
+  <template x-if="error">
+    <div class="bg-white border border-red-200 text-red-700 rounded-xl p-4 mb-6 text-sm break-words" x-text="error"></div>
+  </template>
+
+  <div x-show="models.length" x-cloak
+    class="bg-white rounded-2xl border border-gray-200 divide-y divide-gray-100 overflow-hidden">
+    <template x-for="m in models" :key="m.id">
+      <div>
+        <button @click="toggle(m.id)"
+          class="w-full flex items-center gap-4 px-5 py-3.5 text-left hover:bg-gray-50 transition-colors">
+          <div class="flex-1 min-w-0">
+            <div class="flex items-center gap-2 flex-wrap">
+              <span class="font-medium" x-text="m.name || m.id"></span>
+              <span x-show="m.preview"
+                class="text-xs px-1.5 py-0.5 rounded-md bg-amber-50 text-amber-700">preview</span>
+              <span x-show="m.model_picker_enabled"
+                class="text-xs px-1.5 py-0.5 rounded-md bg-emerald-50 text-emerald-700">picker</span>
+              <span x-show="m.vendor" :class="vendorClass(m.vendor)"
+                class="text-xs px-1.5 py-0.5 rounded-md" x-text="m.vendor"></span>
+            </div>
+            <div class="text-xs text-gray-500 font-mono mt-0.5 break-words" x-text="m.id"></div>
+          </div>
+          <div class="text-right text-xs text-gray-600 shrink-0 space-y-0.5">
+            <div>上下文 <span class="font-medium text-gray-900" x-text="fmt(m.capabilities?.limits?.max_context_window_tokens)"></span></div>
+            <div>输出 <span class="font-medium text-gray-900" x-text="fmt(m.capabilities?.limits?.max_output_tokens)"></span></div>
+            <div class="text-gray-400" x-text="(m.supported_endpoints || []).join(' · ') || '—'"></div>
+          </div>
+        </button>
+
+        <div x-show="open === m.id" x-cloak class="px-5 pb-5">
+          <div class="border-l-2 border-indigo-100 pl-4 grid grid-cols-1 sm:grid-cols-2 gap-x-8 gap-y-4 text-sm">
+            <section>
+              <h3 class="text-xs font-medium text-gray-400 uppercase tracking-wide mb-2">能力</h3>
+              <dl class="space-y-1">
+                <template x-for="row in capabilityRows(m)" :key="row.label">
+                  <div class="flex justify-between gap-4">
+                    <dt class="text-gray-500" x-text="row.label"></dt>
+                    <dd class="text-gray-900 text-right break-words" x-text="row.value"></dd>
+                  </div>
+                </template>
+              </dl>
+            </section>
+            <section>
+              <h3 class="text-xs font-medium text-gray-400 uppercase tracking-wide mb-2">计费与限制</h3>
+              <dl class="space-y-1">
+                <template x-for="row in billingRows(m)" :key="row.label">
+                  <div class="flex justify-between gap-4">
+                    <dt class="text-gray-500" x-text="row.label"></dt>
+                    <dd class="text-gray-900 text-right break-words" x-text="row.value"></dd>
+                  </div>
+                </template>
+              </dl>
+            </section>
+          </div>
+        </div>
+      </div>
+    </template>
+  </div>
+
+  <p x-show="!models.length && !error" class="text-sm text-gray-400 text-center py-16">加载中…</p>
+</div>
+
+<script>
+function modelsPage() {
+  return {
+    models: [], cachedAt: null, error: '', open: null,
+
+    async load() {
+      try {
+        const resp = await fetch('/web/api/models');
+        if (resp.status === 401) { location.href = '/login'; return; }
+        if (!resp.ok) {
+          const body = await resp.json().catch(() => ({}));
+          this.error = body.error || ('加载失败:HTTP ' + resp.status);
+          return;
+        }
+        const body = await resp.json();
+        this.models = body.data || [];
+        this.cachedAt = body.cached_at;
+      } catch (e) {
+        this.error = '加载失败:' + e;
+      }
+    },
+
+    toggle(id) { this.open = this.open === id ? null : id; },
+    async logout() { await fetch('/auth/logout', { method: 'POST' }); location.href = '/login'; },
+
+    fmt(n) { return n == null ? '—' : Number(n).toLocaleString(); },
+    // 上游价格单位是「美分/每 1M token」,除以 100 得美元
+    price(v) { return v == null ? '—' : '$' + (v / 100).toFixed(2); },
+
+    vendorClass(v) {
+      const map = {
+        'Anthropic': 'bg-orange-50 text-orange-700',
+        'OpenAI': 'bg-emerald-50 text-emerald-700',
+        'Azure OpenAI': 'bg-blue-50 text-blue-700',
+      };
+      return map[v] || 'bg-purple-50 text-purple-700';
+    },
+
+    capabilityRows(m) {
+      const s = m.capabilities?.supports || {};
+      const lim = m.capabilities?.limits || {};
+      const rows = [
+        { label: '工具调用', value: s.tool_calls ? '支持' + (s.parallel_tool_calls ? '(可并行)' : '') : '—' },
+        { label: '结构化输出', value: s.structured_outputs ? '支持' : '—' },
+        { label: '流式', value: s.streaming ? '支持' : '—' },
+        { label: 'Reasoning effort', value: (s.reasoning_effort || []).join(' / ') || '—' },
+      ];
+      if (s.adaptive_thinking) {
+        rows.push({ label: '思考预算', value: this.fmt(s.min_thinking_budget) + ' – ' + this.fmt(s.max_thinking_budget) });
+      }
+      if (s.vision) {
+        rows.push({ label: '视觉', value: '最多 ' + this.fmt(lim.vision?.max_prompt_images) + ' 张图' });
+      }
+      rows.push({ label: 'Tokenizer', value: m.capabilities?.tokenizer || '—' });
+      return rows;
+    },
+
+    billingRows(m) {
+      const p = m.billing?.token_prices?.default || {};
+      const rows = [
+        { label: '输入 / 1M', value: this.price(p.input_price) },
+        { label: '输出 / 1M', value: this.price(p.output_price) },
+        { label: '缓存读 / 1M', value: this.price(p.cache_price) },
+        { label: '缓存写 / 1M', value: this.price(p.cache_write_price) },
+        { label: '最大输入', value: this.fmt(m.capabilities?.limits?.max_prompt_tokens) },
+      ];
+      const plans = m.billing?.restricted_to;
+      rows.push({ label: '套餐限制', value: (plans && plans.length) ? plans.join(', ') : '无限制' });
+      return rows;
+    },
+  };
+}
+</script>
+<style>[x-cloak]{display:none!important}</style>
+</body>
+</html>
