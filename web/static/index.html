@@ -34,9 +34,11 @@
         <dt class="text-gray-500 shrink-0">Endpoint</dt>
         <dd class="flex items-center gap-2 min-w-0">
           <span class="font-mono text-gray-900 truncate" x-text="endpoint" :title="endpoint"></span>
-          <button @click="copy(endpoint, 'ep')"
-            class="shrink-0 text-xs px-2 py-1 rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50 hover:text-indigo-600 transition-colors"
-            x-text="copied === 'ep' ? '已复制' : '复制'"></button>
+          <button @click="copy(endpoint, 'ep')" aria-label="复制 Endpoint" :title="copied === 'ep' ? '已复制' : '复制'"
+            class="shrink-0 p-1.5 rounded-lg text-gray-400 hover:text-indigo-600 hover:bg-gray-100 transition-colors">
+            <svg x-show="copied !== 'ep'" class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+            <svg x-show="copied === 'ep'" x-cloak class="w-4 h-4 text-emerald-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
+          </button>
         </dd>
       </div>
       <template x-for="(k, i) in apiKeys" :key="k">
@@ -44,9 +46,11 @@
           <dt class="text-gray-500 shrink-0">API Key</dt>
           <dd class="flex items-center gap-2 min-w-0">
             <span class="font-mono text-gray-900 truncate" x-text="mask(k)"></span>
-            <button @click="copy(k, 'key' + i)"
-              class="shrink-0 text-xs px-2 py-1 rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50 hover:text-indigo-600 transition-colors"
-              x-text="copied === 'key' + i ? '已复制' : '复制'"></button>
+            <button @click="copy(k, 'key' + i)" aria-label="复制 API Key" :title="copied === 'key' + i ? '已复制' : '复制'"
+              class="shrink-0 p-1.5 rounded-lg text-gray-400 hover:text-indigo-600 hover:bg-gray-100 transition-colors">
+              <svg x-show="copied !== 'key' + i" class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+              <svg x-show="copied === 'key' + i" x-cloak class="w-4 h-4 text-emerald-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
+            </button>
           </dd>
         </div>
       </template>
