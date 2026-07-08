@@ -53,6 +53,14 @@
     </dl>
   </div>
 
+  <div x-show="all.length" x-cloak class="flex items-center justify-between mb-2 px-1">
+    <span class="text-xs text-gray-400"
+      x-text="showAll ? '上游完整目录,共 ' + all.length + ' 个' : '每系列最新,共 ' + curated.length + ' 个'"></span>
+    <button @click="showAll = !showAll"
+      class="text-xs text-gray-500 hover:text-indigo-600 transition-colors"
+      x-text="showAll ? '只看最新' : '显示全部'"></button>
+  </div>
+
   <div x-show="models.length" x-cloak
     class="bg-white rounded-2xl border border-gray-200 divide-y divide-gray-100 overflow-hidden">
     <template x-for="m in models" :key="m.id">
@@ -114,8 +122,11 @@
 <script>
 function modelsPage() {
   return {
-    models: [], cachedAt: null, error: '', open: null,
+    all: [], curated: [], showAll: false, cachedAt: null, error: '', open: null,
     endpoint: location.origin, apiKeys: [], copied: '',
+
+    // 展示列表:默认精选视图(每系列最新),可切换为上游完整目录
+    get models() { return this.showAll ? this.all : this.curated; },
 
     // 接入信息独立加载,失败只在控制台告警,不阻塞模型列表
     async loadConfig() {
@@ -150,12 +161,16 @@ function modelsPage() {
         const body = await resp.json();
         // 只展示当前代际的聊天模型(picker 启用),隐藏上游目录里的历史遗留条目
         const list = (body.data || []).filter(m => m.model_picker_enabled && m.capabilities?.type === 'chat');
-        // 系列划分:gpt 开头统一算 GPT 系列;Claude 按 opus/sonnet/haiku/fable 子系列拆分。
+        // 系列划分:gpt 开头统一算 GPT 系列;Claude 按 opus/sonnet/haiku/fable 子系列拆分;
+        // Gemini 的 id 形如 gemini-<版本>-<pro|flash>[-preview],按 Pro/Flash 拆子系列。
         // 每个系列只保留版本最新的一个;同版本优先正式版(非 preview)。
         const seriesOf = id => {
           if (/^gpt/.test(id)) return 'gpt';
           const c = /^claude-([a-z]+)/.exec(id);
-          return c ? 'claude-' + c[1] : id;
+          if (c) return 'claude-' + c[1];
+          const g = /^gemini.*-(pro|flash)\b/.exec(id);
+          if (g) return 'gemini-' + g[1];
+          return id;
         };
         const verOf = id => { const t = /(\d+(?:\.\d+)?)/.exec(id); return t ? parseFloat(t[1]) : 0; };
         // 同系列取舍:版本高者胜;同版本正式版优先;再同则 id 短者(基础版)优先,最后字母序兜底
@@ -173,10 +188,12 @@ function modelsPage() {
         }
         // 排序:厂商字母序分组,组内按输入价格降序(旗舰→轻量),同价按 id 字母序
         const priceOf = m => m.billing?.token_prices?.default?.input_price ?? 0;
-        this.models = [...bySeries.values()].sort((a, b) =>
+        const sortModels = arr => [...arr].sort((a, b) =>
           (a.vendor || '').localeCompare(b.vendor || '') ||
           (priceOf(b) - priceOf(a)) ||
           a.id.localeCompare(b.id));
+        this.all = sortModels(body.data || []);
+        this.curated = sortModels([...bySeries.values()]);
         this.cachedAt = body.cached_at;
       } catch (e) {
         this.error = '加载失败:' + e;
