@@ -15,7 +15,7 @@
     <div>
       <h1 class="text-2xl font-semibold tracking-tight">模型目录</h1>
       <p class="text-sm text-gray-500 mt-1">
-        Copilot2API · 数据来自上游 /models
+        Copilot2API · 当前可用的最新模型(数据来自上游 /models)
         <span x-show="cachedAt">· 缓存于 <span x-text="new Date(cachedAt).toLocaleString()"></span></span>
       </p>
     </div>
@@ -100,7 +100,8 @@ function modelsPage() {
           return;
         }
         const body = await resp.json();
-        this.models = body.data || [];
+        // 只展示当前代际的聊天模型(picker 启用),隐藏上游目录里的历史遗留条目
+        this.models = (body.data || []).filter(m => m.model_picker_enabled && m.capabilities?.type === 'chat');
         this.cachedAt = body.cached_at;
       } catch (e) {
         this.error = '加载失败:' + e;
