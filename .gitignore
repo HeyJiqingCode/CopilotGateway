@@ -39,3 +39,7 @@ __debug_bin*
 .env
 .env.*
 copilot2api-darwin-arm64
+
+# Local agent docs (specs/plans) and browser verification artifacts
+docs/
+.playwright-mcp/
