@@ -259,3 +259,17 @@ func (s *stubTokenProvider) GetToken(_ context.Context) (string, error) {
 func (s *stubTokenProvider) GetBaseURL() string {
 	return s.baseURL
 }
+
+func TestCachedAt(t *testing.T) {
+	c := NewCache(nil, time.Minute)
+	if !c.CachedAt().IsZero() {
+		t.Error("fresh cache should have zero CachedAt")
+	}
+	now := time.Now()
+	c.mu.Lock()
+	c.cachedAt = now
+	c.mu.Unlock()
+	if !c.CachedAt().Equal(now) {
+		t.Errorf("CachedAt = %v, want %v", c.CachedAt(), now)
+	}
+}

@@ -83,6 +83,13 @@ func (c *Cache) GetInfo(ctx context.Context) (map[string]*Info, error) {
 	return parsed, err
 }
 
+// CachedAt 返回缓存最近一次成功刷新的时间;尚未填充时为零值。
+func (c *Cache) CachedAt() time.Time {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	return c.cachedAt
+}
+
 func (c *Cache) get(ctx context.Context) ([]byte, map[string]*Info, error) {
 	// Fast path: read lock check.
 	c.mu.RLock()
