@@ -186,30 +186,29 @@ function modelsPage() {
         const body = await resp.json();
         // 只展示当前代际的聊天模型(picker 启用),隐藏上游目录里的历史遗留条目
         const list = (body.data || []).filter(m => m.model_picker_enabled && m.capabilities?.type === 'chat');
-        // 系列划分:gpt 开头统一算 GPT 系列;Claude 按 opus/sonnet/haiku/fable 子系列拆分;
-        // Gemini 的 id 形如 gemini-<版本>-<pro|flash>[-preview],按 Pro/Flash 拆子系列。
-        // 每个系列只保留版本最新的一个;同版本优先正式版(非 preview)。
+        // 系列划分:Claude 按 opus/sonnet/haiku/fable 子系列;Gemini 按 Pro/Flash;
+        // 其余品牌取 id 第一段(gpt/kimi/…)。每个系列保留「最新一代的全部型号」:
+        // 取系列内最高版本号,同代型号全部显示;同代若有正式版则剔除 preview 变体。
         const seriesOf = id => {
-          if (/^gpt/.test(id)) return 'gpt';
           const c = /^claude-([a-z]+)/.exec(id);
           if (c) return 'claude-' + c[1];
           const g = /^gemini.*-(pro|flash)\b/.exec(id);
           if (g) return 'gemini-' + g[1];
-          return id;
+          return id.split('-')[0];
         };
         const verOf = id => { const t = /(\d+(?:\.\d+)?)/.exec(id); return t ? parseFloat(t[1]) : 0; };
-        // 同系列取舍:版本高者胜;同版本正式版优先;再同则 id 短者(基础版)优先,最后字母序兜底
-        const better = (a, b) => {
-          if (verOf(a.id) !== verOf(b.id)) return verOf(a.id) > verOf(b.id);
-          if (!!a.preview !== !!b.preview) return !a.preview;
-          if (a.id.length !== b.id.length) return a.id.length < b.id.length;
-          return a.id.localeCompare(b.id) < 0;
-        };
-        const bySeries = new Map();
+        const groups = new Map();
         for (const m of list) {
           const key = seriesOf(m.id);
-          const cur = bySeries.get(key);
-          if (!cur || better(m, cur)) bySeries.set(key, m);
+          if (!groups.has(key)) groups.set(key, []);
+          groups.get(key).push(m);
+        }
+        const kept = [];
+        for (const arr of groups.values()) {
+          const maxVer = Math.max(...arr.map(m => verOf(m.id)));
+          let latest = arr.filter(m => verOf(m.id) === maxVer);
+          if (latest.some(m => !m.preview)) latest = latest.filter(m => !m.preview);
+          kept.push(...latest);
         }
         // 排序:厂商字母序分组,组内按输入价格降序(旗舰→轻量),同价按 id 字母序
         const priceOf = m => m.billing?.token_prices?.default?.input_price ?? 0;
@@ -218,7 +217,7 @@ function modelsPage() {
           (priceOf(b) - priceOf(a)) ||
           a.id.localeCompare(b.id));
         this.all = sortModels(body.data || []);
-        this.curated = sortModels([...bySeries.values()]);
+        this.curated = sortModels(kept);
         this.cachedAt = body.cached_at;
       } catch (e) {
         this.error = '加载失败:' + e;
