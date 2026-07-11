@@ -189,7 +189,7 @@ Add to `~/.claude/settings.json`:
 
 ### Codex
 
-Add to `~/.codex/config.toml`. With `env_key`, Codex reads the gateway key from an environment variable instead of storing it in the config file — export it before launching: `export COPILOTGATEWAY_KEY=<your-secret-key>`.
+Add to `~/.codex/config.toml`. With `env_key`, Codex reads the gateway key from an environment variable instead of storing it in the config file — export it before launching: `export COPILOTGATEWAY_API_KEY=<your-secret-key>`.
 
 ```toml
 model = "gpt-5.6-sol"
@@ -202,5 +202,5 @@ web_search = "disabled"
 name = "copilotgateway"
 base_url = "http://127.0.0.1:7777/v1"
 wire_api = "responses"
-env_key = "COPILOTGATEWAY_KEY"
+env_key = "COPILOTGATEWAY_API_KEY"
 ```
