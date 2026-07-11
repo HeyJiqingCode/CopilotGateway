@@ -1,0 +1,46 @@
+# GoReleaser v2 配置:打 v* tag 时构建全平台二进制并发布 GitHub Release
+version: 2
+
+project_name: copilotgateway
+
+before:
+  hooks:
+    - go mod tidy
+
+builds:
+  - id: copilotgateway
+    main: .
+    binary: copilotgateway
+    env:
+      - CGO_ENABLED=0
+    # 注入真实版本号,替换 main.go 里的 "dev"
+    ldflags:
+      - -s -w -X main.version={{.Version}}
+    goos:
+      - linux
+      - darwin
+      - windows
+    goarch:
+      - amd64
+      - arm64
+
+archives:
+  - formats: ["tar.gz"]
+    # Windows 用户习惯 zip
+    format_overrides:
+      - goos: windows
+        formats: ["zip"]
+    name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+
+checksum:
+  name_template: "checksums.txt"
+
+changelog:
+  sort: asc
+  filters:
+    exclude:
+      - "^docs:"
+      - "^chore:"
+      - "^ci:"
+      - "^style:"
+      - "^test:"
