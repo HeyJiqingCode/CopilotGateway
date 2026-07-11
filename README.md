@@ -11,6 +11,7 @@ A lightweight Go proxy that exposes GitHub Copilot as OpenAI-compatible and Anth
 - **Direct Passthrough**: Each endpoint forwards to the matching Copilot API — send every model to the endpoint its API natively speaks
 - **Auto Authentication**: GitHub Device Flow OAuth with automatic token refresh
 - **Models Cache**: 5-minute cache for `/v1/models` and Anthropic model capability lookups
+- **Web Dashboard** (optional): Login-protected page at `/` showing the live model catalog — enabled only when web credentials are configured
 
 ## Quick Start
 
@@ -44,6 +45,16 @@ Server starts on `http://127.0.0.1:7777` by default.
 - When deploying to the public internet, terminate **HTTPS** at a reverse proxy / load balancer in front of this service so keys are not sent in clear text.
 - The `/health` endpoint is unauthenticated for load balancer probes.
 - Credentials are stored in `~/.config/copilot2api/credentials.json`.
+
+## Web Dashboard (optional)
+
+A login-protected page at `/` that shows the live model catalog: the latest generation of each model series with expandable per-model details (limits, capabilities, pricing), plus one-click copy of the endpoint URL and gateway API keys.
+
+**Disabled by default.** It only exists when **both** `COPILOT2API_WEB_USERNAME` and `COPILOT2API_WEB_PASSWORD` are set — otherwise all web paths return 404 and the proxy behaves as a pure API gateway, exactly as before.
+
+- Sign in at `/login`; sessions are in-memory cookies (lifetime `COPILOT2API_WEB_SESSION_HOURS`, default 24h) and reset on restart.
+- Web paths (`/`, `/login`, `/auth/*`, `/web/*`) are guarded by the cookie session instead of the API key; `/v1/*` authentication is unchanged.
+- Signed-in users can view and copy the gateway API keys from the dashboard — pick a strong web password when exposing it publicly.
 
 ## Usage with Anthropic
 
@@ -166,6 +177,9 @@ Environment variables are used as defaults when flags are not provided:
 | `COPILOT2API_PLUGIN_VERSION` | Spoofed plugin version header | `copilot-chat/0.55.0` |
 | `COPILOT2API_CHAT_USER_AGENT` | Spoofed Copilot Chat User-Agent | `GitHubCopilotChat/0.55.0` |
 | `COPILOT2API_API_VERSION` | GitHub Copilot API version header | `2026-06-01` |
+| `COPILOT2API_WEB_USERNAME` | Web dashboard login username (dashboard enabled only when username & password are both set) | _unset — dashboard disabled_ |
+| `COPILOT2API_WEB_PASSWORD` | Web dashboard login password | _unset — dashboard disabled_ |
+| `COPILOT2API_WEB_SESSION_HOURS` | Web dashboard session lifetime (hours) | `24` |
 
 CLI flags take precedence over environment variables.
 
