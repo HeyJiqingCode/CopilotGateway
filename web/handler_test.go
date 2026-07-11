@@ -43,7 +43,7 @@ func doLogin(t *testing.T, mux *http.ServeMux, username, password string) *http.
 		t.Fatalf("login status = %d, want 200 (body: %s)", rec.Code, rec.Body.String())
 	}
 	for _, c := range rec.Result().Cookies() {
-		if c.Name == "copilot2api_session" {
+		if c.Name == "copilotgateway_session" {
 			return c
 		}
 	}
@@ -68,9 +68,9 @@ func TestConfigFromEnv(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			t.Setenv("COPILOT2API_WEB_USERNAME", tt.user)
-			t.Setenv("COPILOT2API_WEB_PASSWORD", tt.pass)
-			t.Setenv("COPILOT2API_WEB_SESSION_HOURS", tt.hours)
+			t.Setenv("COPILOTGW_WEB_USERNAME", tt.user)
+			t.Setenv("COPILOTGW_WEB_PASSWORD", tt.pass)
+			t.Setenv("COPILOTGW_WEB_SESSION_HOURS", tt.hours)
 			cfg, enabled := ConfigFromEnv()
 			if enabled != tt.wantEnabled {
 				t.Fatalf("enabled = %v, want %v", enabled, tt.wantEnabled)

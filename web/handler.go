@@ -13,7 +13,7 @@ import (
 //go:embed static
 var staticFS embed.FS
 
-const cookieName = "copilot2api_session"
+const cookieName = "copilotgateway_session"
 
 // Config 是 web UI 的启用配置(凭据 + 会话时长)。
 type Config struct {
@@ -26,13 +26,13 @@ type Config struct {
 
 // ConfigFromEnv 从环境变量读取配置;用户名或密码缺失时返回 false(web 不启用)。
 func ConfigFromEnv() (Config, bool) {
-	username := os.Getenv("COPILOT2API_WEB_USERNAME")
-	password := os.Getenv("COPILOT2API_WEB_PASSWORD")
+	username := os.Getenv("COPILOTGW_WEB_USERNAME")
+	password := os.Getenv("COPILOTGW_WEB_PASSWORD")
 	if username == "" || password == "" {
 		return Config{}, false
 	}
 	hours := 24
-	if v := os.Getenv("COPILOT2API_WEB_SESSION_HOURS"); v != "" {
+	if v := os.Getenv("COPILOTGW_WEB_SESSION_HOURS"); v != "" {
 		if n, err := strconv.Atoi(v); err == nil && n > 0 {
 			hours = n
 		}

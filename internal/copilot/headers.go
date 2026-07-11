@@ -29,16 +29,16 @@ var (
 
 // ConfigureFromEnv 用非空环境变量覆盖默认版本头。须在启动早期调用一次。
 func ConfigureFromEnv() {
-	if v := os.Getenv("COPILOT2API_CHAT_USER_AGENT"); v != "" {
+	if v := os.Getenv("COPILOTGW_CHAT_USER_AGENT"); v != "" {
 		CopilotUserAgent = v
 	}
-	if v := os.Getenv("COPILOT2API_EDITOR_VERSION"); v != "" {
+	if v := os.Getenv("COPILOTGW_EDITOR_VERSION"); v != "" {
 		EditorVersion = v
 	}
-	if v := os.Getenv("COPILOT2API_PLUGIN_VERSION"); v != "" {
+	if v := os.Getenv("COPILOTGW_PLUGIN_VERSION"); v != "" {
 		EditorPluginVersion = v
 	}
-	if v := os.Getenv("COPILOT2API_API_VERSION"); v != "" {
+	if v := os.Getenv("COPILOTGW_API_VERSION"); v != "" {
 		APIVersion = v
 	}
 }

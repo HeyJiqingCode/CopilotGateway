@@ -1,5 +1,4 @@
 # Binaries
-copilot2api
 CopilotGateway
 *.exe
 *.exe~
@@ -39,7 +38,6 @@ __debug_bin*
 # Local config
 .env
 .env.*
-copilot2api-darwin-arm64
 
 # Local agent docs (specs/plans) and browser verification artifacts
 docs/

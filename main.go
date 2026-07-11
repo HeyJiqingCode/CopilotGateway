@@ -26,18 +26,18 @@ var version = "dev"
 
 func main() {
 	var (
-		port        = flag.Int("port", 0, "Server port (env: COPILOT2API_PORT, default: 7777)")
-		host        = flag.String("host", "", "Server host (env: COPILOT2API_HOST, default: 127.0.0.1)")
-		tokenDir    = flag.String("token-dir", "", "Token storage directory (env: COPILOT2API_TOKEN_DIR, default: ~/.config/copilot2api)")
-		apiKey      = flag.String("api-key", "", "Required API key(s) for clients, comma-separated (env: COPILOT2API_API_KEY)")
+		port        = flag.Int("port", 0, "Server port (env: COPILOTGW_PORT, default: 7777)")
+		host        = flag.String("host", "", "Server host (env: COPILOTGW_HOST, default: 127.0.0.1)")
+		tokenDir    = flag.String("token-dir", "", "Token storage directory (env: COPILOTGW_TOKEN_DIR, default: ~/.config/copilotgateway)")
+		apiKey      = flag.String("api-key", "", "Required API key(s) for clients, comma-separated (env: COPILOTGW_API_KEY)")
 		showVersion = flag.Bool("version", false, "Show version and exit")
-		debug       = flag.Bool("debug", false, "Enable debug logging (env: COPILOT2API_DEBUG)")
+		debug       = flag.Bool("debug", false, "Enable debug logging (env: COPILOTGW_DEBUG)")
 	)
 	flag.Parse()
 
 	// Apply debug env var
 	if !*debug {
-		if v := os.Getenv("COPILOT2API_DEBUG"); v != "" {
+		if v := os.Getenv("COPILOTGW_DEBUG"); v != "" {
 			if enabled, err := strconv.ParseBool(v); err == nil {
 				*debug = enabled
 			}
@@ -46,14 +46,14 @@ func main() {
 
 	// Apply env var defaults
 	if *host == "" {
-		if v := os.Getenv("COPILOT2API_HOST"); v != "" {
+		if v := os.Getenv("COPILOTGW_HOST"); v != "" {
 			*host = v
 		} else {
 			*host = "127.0.0.1"
 		}
 	}
 	if *port == 0 {
-		if v := os.Getenv("COPILOT2API_PORT"); v != "" {
+		if v := os.Getenv("COPILOTGW_PORT"); v != "" {
 			if p, err := strconv.Atoi(v); err == nil {
 				*port = p
 			}
@@ -63,16 +63,16 @@ func main() {
 		}
 	}
 	if *tokenDir == "" {
-		if v := os.Getenv("COPILOT2API_TOKEN_DIR"); v != "" {
+		if v := os.Getenv("COPILOTGW_TOKEN_DIR"); v != "" {
 			*tokenDir = v
 		}
 	}
 	if *apiKey == "" {
-		*apiKey = os.Getenv("COPILOT2API_API_KEY")
+		*apiKey = os.Getenv("COPILOTGW_API_KEY")
 	}
 
 	if *showVersion {
-		fmt.Printf("copilot2api version %s\n", version)
+		fmt.Printf("copilotgateway version %s\n", version)
 		os.Exit(0)
 	}
 
@@ -82,7 +82,7 @@ func main() {
 	// 强制鉴权:必须配置至少一个 API key,否则拒绝启动(避免公网开放代理)
 	apiKeys := auth.ParseAPIKeys(*apiKey)
 	if len(apiKeys) == 0 {
-		fmt.Fprintln(os.Stderr, "error: an API key is required. Set COPILOT2API_API_KEY (or -api-key), comma-separated for multiple.")
+		fmt.Fprintln(os.Stderr, "error: an API key is required. Set COPILOTGW_API_KEY (or -api-key), comma-separated for multiple.")
 		os.Exit(1)
 	}
 
@@ -103,7 +103,7 @@ func main() {
 			slog.Error("failed to get home directory", "error", err)
 			os.Exit(1)
 		}
-		*tokenDir = filepath.Join(homeDir, ".config", "copilot2api")
+		*tokenDir = filepath.Join(homeDir, ".config", "copilotgateway")
 	}
 
 	// Initialize auth client
