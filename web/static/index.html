@@ -13,14 +13,18 @@
 
   <header class="flex items-end justify-between mb-6">
     <div>
-      <h1 class="text-2xl font-semibold tracking-tight">模型目录</h1>
+      <h1 class="text-2xl font-semibold tracking-tight" x-text="t('title')"></h1>
       <p class="text-sm text-gray-500 mt-1">
-        CopilotGateway · 当前可用的最新模型(数据来自上游 /models)
-        <span x-show="cachedAt">· 缓存于 <span x-text="new Date(cachedAt).toLocaleString()"></span></span>
+        CopilotGateway · <span x-text="t('subtitle')"></span><span x-show="cachedAt"> · <span x-text="t('cached') + ' ' + fmtTime(cachedAt)"></span></span>
       </p>
     </div>
-    <button @click="logout()"
-      class="text-sm text-gray-500 hover:text-red-600 transition-colors">退出登录</button>
+    <div class="flex items-center gap-4">
+      <button @click="setLang(lang === 'zh' ? 'en' : 'zh')" aria-label="Switch language"
+        class="text-sm text-gray-500 hover:text-indigo-600 transition-colors"
+        x-text="lang === 'zh' ? 'EN' : '中文'"></button>
+      <button @click="logout()"
+        class="text-sm text-gray-500 hover:text-red-600 transition-colors" x-text="t('logout')"></button>
+    </div>
   </header>
 
   <template x-if="error">
@@ -28,13 +32,13 @@
   </template>
 
   <div x-show="apiKeys.length" x-cloak class="bg-white rounded-2xl border border-gray-200 px-5 py-4 mb-6">
-    <h2 class="text-xs font-medium text-gray-400 uppercase tracking-wide mb-3">接入信息</h2>
+    <h2 class="text-xs font-medium text-gray-400 uppercase tracking-wide mb-3" x-text="t('access')"></h2>
     <dl class="space-y-2 text-sm">
       <div class="flex items-center justify-between gap-4">
         <dt class="text-gray-500 shrink-0">Endpoint</dt>
         <dd class="flex items-center gap-2 min-w-0">
           <span class="font-mono text-gray-900 truncate" x-text="endpoint" :title="endpoint"></span>
-          <button @click="copy(endpoint, 'ep')" aria-label="复制 Endpoint" :title="copied === 'ep' ? '已复制' : '复制'"
+          <button @click="copy(endpoint, 'ep')" :aria-label="t('copyTip')" :title="copied === 'ep' ? t('copiedTip') : t('copyTip')"
             class="shrink-0 p-1.5 rounded-lg text-gray-400 hover:text-indigo-600 hover:bg-gray-100 transition-colors">
             <svg x-show="copied !== 'ep'" class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
             <svg x-show="copied === 'ep'" x-cloak class="w-4 h-4 text-emerald-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
@@ -46,7 +50,7 @@
           <dt class="text-gray-500 shrink-0">API Key</dt>
           <dd class="flex items-center gap-2 min-w-0">
             <span class="font-mono text-gray-900 truncate" x-text="mask(k)"></span>
-            <button @click="copy(k, 'key' + i)" aria-label="复制 API Key" :title="copied === 'key' + i ? '已复制' : '复制'"
+            <button @click="copy(k, 'key' + i)" :aria-label="t('copyTip')" :title="copied === 'key' + i ? t('copiedTip') : t('copyTip')"
               class="shrink-0 p-1.5 rounded-lg text-gray-400 hover:text-indigo-600 hover:bg-gray-100 transition-colors">
               <svg x-show="copied !== 'key' + i" class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
               <svg x-show="copied === 'key' + i" x-cloak class="w-4 h-4 text-emerald-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
@@ -59,10 +63,10 @@
 
   <div x-show="all.length" x-cloak class="flex items-center justify-between mb-2 px-1">
     <span class="text-xs text-gray-400"
-      x-text="showAll ? '上游完整目录,共 ' + all.length + ' 个' : '每系列最新,共 ' + curated.length + ' 个'"></span>
+      x-text="showAll ? t('allCount', {n: all.length}) : t('curatedCount', {n: curated.length})"></span>
     <button @click="showAll = !showAll"
       class="text-xs text-gray-500 hover:text-indigo-600 transition-colors"
-      x-text="showAll ? '只看最新' : '显示全部'"></button>
+      x-text="showAll ? t('showLatest') : t('showAll')"></button>
   </div>
 
   <div x-show="models.length" x-cloak
@@ -83,13 +87,13 @@
             </div>
             <div class="flex items-center gap-3 flex-wrap mt-0.5 text-xs">
               <span class="text-gray-500 font-mono break-words" x-text="m.id"></span>
-              <span class="text-gray-400">输入/输出/缓存读/缓存写
+              <span class="text-gray-400"><span x-text="t('prices')"></span>
                 <span class="text-gray-700 font-medium" x-text="priceLine(m)"></span>
               </span>
             </div>
           </div>
           <div class="text-right text-xs text-gray-600 shrink-0 space-y-1">
-            <div>上下文 <span class="font-medium text-gray-900" x-text="fmt(m.capabilities?.limits?.max_context_window_tokens)"></span></div>
+            <div><span x-text="t('context')"></span> <span class="font-medium text-gray-900" x-text="fmt(m.capabilities?.limits?.max_context_window_tokens)"></span></div>
             <div class="flex justify-end gap-1 flex-wrap">
               <template x-for="ep in endpoints(m)" :key="ep">
                 <span class="px-1.5 py-0.5 rounded-md" :class="epClass(ep)" x-text="ep"></span>
@@ -102,7 +106,7 @@
     </template>
   </div>
 
-  <p x-show="!models.length && !error" class="text-sm text-gray-400 text-center py-16">加载中…</p>
+  <p x-show="!models.length && !error" class="text-sm text-gray-400 text-center py-16" x-text="t('loading')"></p>
 
   <!-- 模型详情弹窗:点击行打开,遮罩/ESC/✕ 关闭 -->
   <div x-show="openModel" x-cloak @keydown.escape.window="open = null"
@@ -123,14 +127,14 @@
               </div>
               <div class="text-xs text-gray-500 font-mono mt-0.5 break-words" x-text="openModel.id"></div>
             </div>
-            <button @click="open = null" aria-label="关闭"
+            <button @click="open = null" :aria-label="t('close')"
               class="shrink-0 p-1.5 -m-1 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors">
               <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg>
             </button>
           </div>
           <dl class="mt-5 space-y-2 text-sm">
             <template x-for="row in capabilityRows(openModel)" :key="row.label">
-              <div class="grid grid-cols-[7.5rem_1fr] gap-3">
+              <div class="grid grid-cols-[9rem_1fr] gap-3">
                 <dt class="text-gray-500" x-text="row.label"></dt>
                 <dd class="text-gray-900 text-right break-words" x-text="row.value"></dd>
               </div>
@@ -143,10 +147,70 @@
 </div>
 
 <script>
+// 页面文案字典:zh/en 两套,key 一一对应;{n}/{mb} 为插值占位符
+const I18N = {
+  zh: {
+    docTitle: '模型目录 · CopilotGateway',
+    title: '模型目录',
+    subtitle: '当前可用的最新模型(数据来自上游 /models)',
+    cached: '缓存于',
+    logout: '退出登录',
+    access: '接入信息',
+    copyTip: '复制', copiedTip: '已复制',
+    curatedCount: '每系列最新,共 {n} 个',
+    allCount: '上游完整目录,共 {n} 个',
+    showAll: '显示全部', showLatest: '只看最新',
+    loading: '加载中…', loadFail: '加载失败',
+    context: '上下文',
+    prices: '输入/输出/缓存读/缓存写',
+    maxIO: '最大输入/输出',
+    tools: '工具调用', yes: '支持', parallel: '(可并行)',
+    structured: '结构化输出', streaming: '流式',
+    effort: 'Reasoning effort', budget: '思考预算',
+    vision: '视觉', imgCount: '最多 {n} 张', imgSize: '单张 ≤{mb}MB',
+    close: '关闭',
+  },
+  en: {
+    docTitle: 'Model Catalog · CopilotGateway',
+    title: 'Model Catalog',
+    subtitle: 'latest available models (from upstream /models)',
+    cached: 'cached at',
+    logout: 'Sign out',
+    access: 'Connection',
+    copyTip: 'Copy', copiedTip: 'Copied',
+    curatedCount: 'Latest per series · {n} models',
+    allCount: 'Full upstream catalog · {n} models',
+    showAll: 'Show all', showLatest: 'Latest only',
+    loading: 'Loading…', loadFail: 'Failed to load',
+    context: 'Context',
+    prices: 'in/out/cache-read/cache-write',
+    maxIO: 'Max input/output',
+    tools: 'Tool calls', yes: 'Supported', parallel: ' (parallel)',
+    structured: 'Structured outputs', streaming: 'Streaming',
+    effort: 'Reasoning effort', budget: 'Thinking budget',
+    vision: 'Vision', imgCount: 'up to {n} images', imgSize: '≤{mb}MB each',
+    close: 'Close',
+  },
+};
+
 function modelsPage() {
   return {
     all: [], curated: [], showAll: false, cachedAt: null, error: '', open: null,
     endpoint: location.origin, apiKeys: [], copied: '',
+    // 语言:localStorage 记忆,首次跟随浏览器
+    lang: localStorage.getItem('cgw_lang') || (navigator.language.startsWith('zh') ? 'zh' : 'en'),
+
+    t(key, vars) {
+      let s = (I18N[this.lang] || I18N.zh)[key] || key;
+      if (vars) for (const [k, v] of Object.entries(vars)) s = s.replaceAll('{' + k + '}', v);
+      return s;
+    },
+    setLang(l) {
+      this.lang = l;
+      localStorage.setItem('cgw_lang', l);
+      document.title = this.t('docTitle');
+    },
+    fmtTime(ts) { return new Date(ts).toLocaleString(this.lang === 'zh' ? 'zh-CN' : 'en-US'); },
 
     // 展示列表:默认精选视图(每系列最新),可切换为上游完整目录
     get models() { return this.showAll ? this.all : this.curated; },
@@ -155,13 +219,14 @@ function modelsPage() {
 
     // 接入信息独立加载,失败只在控制台告警,不阻塞模型列表
     async loadConfig() {
+      document.title = this.t('docTitle');
       try {
         const resp = await fetch('/web/api/config');
         if (resp.ok) {
           const body = await resp.json();
           this.apiKeys = body.api_keys || [];
         }
-      } catch (e) { console.warn('接入信息加载失败:', e); }
+      } catch (e) { console.warn('config load failed:', e); }
     },
 
     mask(k) { return k.length > 14 ? k.slice(0, 10) + '…' + k.slice(-4) : k; },
@@ -171,7 +236,7 @@ function modelsPage() {
         await navigator.clipboard.writeText(text);
         this.copied = tag;
         setTimeout(() => { if (this.copied === tag) this.copied = ''; }, 1500);
-      } catch (e) { console.warn('复制失败:', e); }
+      } catch (e) { console.warn('copy failed:', e); }
     },
 
     async load() {
@@ -180,7 +245,7 @@ function modelsPage() {
         if (resp.status === 401) { location.href = '/login'; return; }
         if (!resp.ok) {
           const body = await resp.json().catch(() => ({}));
-          this.error = body.error || ('加载失败:HTTP ' + resp.status);
+          this.error = body.error || (this.t('loadFail') + ': HTTP ' + resp.status);
           return;
         }
         const body = await resp.json();
@@ -218,7 +283,7 @@ function modelsPage() {
         this.curated = sortModels(kept);
         this.cachedAt = body.cached_at;
       } catch (e) {
-        this.error = '加载失败:' + e;
+        this.error = this.t('loadFail') + ': ' + e;
       }
     },
 
@@ -260,20 +325,20 @@ function modelsPage() {
       const s = m.capabilities?.supports || {};
       const lim = m.capabilities?.limits || {};
       const rows = [
-        { label: '最大输入/输出', value: this.fmt(lim.max_prompt_tokens) + ' / ' + this.fmt(lim.max_output_tokens) },
-        { label: '工具调用', value: s.tool_calls ? '支持' + (s.parallel_tool_calls ? '(可并行)' : '') : '—' },
-        { label: '结构化输出', value: s.structured_outputs ? '支持' : '—' },
-        { label: '流式', value: s.streaming ? '支持' : '—' },
-        { label: 'Reasoning effort', value: (s.reasoning_effort || []).join(' / ') || '—' },
+        { label: this.t('maxIO'), value: this.fmt(lim.max_prompt_tokens) + ' / ' + this.fmt(lim.max_output_tokens) },
+        { label: this.t('tools'), value: s.tool_calls ? this.t('yes') + (s.parallel_tool_calls ? this.t('parallel') : '') : '—' },
+        { label: this.t('structured'), value: s.structured_outputs ? this.t('yes') : '—' },
+        { label: this.t('streaming'), value: s.streaming ? this.t('yes') : '—' },
+        { label: this.t('effort'), value: (s.reasoning_effort || []).join(' / ') || '—' },
       ];
       if (s.adaptive_thinking) {
-        rows.push({ label: '思考预算', value: this.fmt(s.min_thinking_budget) + ' – ' + this.fmt(s.max_thinking_budget) });
+        rows.push({ label: this.t('budget'), value: this.fmt(s.min_thinking_budget) + ' – ' + this.fmt(s.max_thinking_budget) });
       }
       if (s.vision) {
         const v = lim.vision || {};
-        const mb = v.max_prompt_image_size ? '单张 ≤' + (v.max_prompt_image_size / 1048576).toFixed(0) + 'MB' : null;
+        const mb = v.max_prompt_image_size ? this.t('imgSize', {mb: (v.max_prompt_image_size / 1048576).toFixed(0)}) : null;
         const types = (v.supported_media_types || []).map(t => t.split('/')[1]).join('/');
-        rows.push({ label: '视觉', value: ['最多 ' + this.fmt(v.max_prompt_images) + ' 张', mb, types || null].filter(Boolean).join(' · ') });
+        rows.push({ label: this.t('vision'), value: [this.t('imgCount', {n: this.fmt(v.max_prompt_images)}), mb, types || null].filter(Boolean).join(' · ') });
       }
       return rows;
     },
