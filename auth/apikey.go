@@ -22,7 +22,7 @@ func APIKeyAuth(keys []string, next http.Handler) http.Handler {
 			return
 		}
 
-		// OpenAI 风格 401 — 各客户端(OpenAI/Anthropic/Gemini)都能识别该结构
+		// OpenAI 风格 401 — OpenAI/Anthropic 客户端都能识别该结构
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusUnauthorized)
 		_, _ = w.Write([]byte(`{"error":{"message":"Invalid API key","type":"authentication_error"}}`))
@@ -33,8 +33,6 @@ func APIKeyAuth(keys []string, next http.Handler) http.Handler {
 //
 //	Authorization: Bearer xxx   (OpenAI / Codex)
 //	x-api-key: xxx              (Anthropic / Claude Code)
-//	x-goog-api-key: xxx         (Gemini)
-//	?key=xxx                    (Gemini CLI 备用)
 func extractAPIKey(r *http.Request) string {
 	if auth := r.Header.Get("Authorization"); auth != "" {
 		if after, ok := strings.CutPrefix(auth, "Bearer "); ok {
@@ -44,12 +42,6 @@ func extractAPIKey(r *http.Request) string {
 		}
 	}
 	if key := strings.TrimSpace(r.Header.Get("x-api-key")); key != "" {
-		return key
-	}
-	if key := strings.TrimSpace(r.Header.Get("x-goog-api-key")); key != "" {
-		return key
-	}
-	if key := strings.TrimSpace(r.URL.Query().Get("key")); key != "" {
 		return key
 	}
 	return ""
