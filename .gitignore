@@ -1,5 +1,6 @@
 # Binaries
 copilot2api
+CopilotGateway
 *.exe
 *.exe~
 *.dll
