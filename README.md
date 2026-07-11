@@ -1,6 +1,8 @@
-# copilot2api
+# CopilotGateway
 
-A lightweight Go proxy that exposes GitHub Copilot as OpenAI-compatible and Anthropic-compatible API endpoints.
+A lightweight Go gateway that exposes GitHub Copilot as OpenAI-compatible and Anthropic-compatible API endpoints, with an optional web dashboard.
+
+> Originally forked from [whtsky/copilot2api](https://github.com/whtsky/copilot2api), now maintained independently.
 
 ## Features
 
@@ -20,7 +22,7 @@ docker run -it --rm \
   -p 127.0.0.1:7777:7777 \
   -e COPILOT2API_API_KEY=your-secret-key \
   -v ~/.config/copilot2api:/root/.config/copilot2api \
-  ghcr.io/whtsky/copilot2api:latest
+  ghcr.io/heyjiqingcode/copilotgateway:latest
 ```
 
 An API key is **required** — set `COPILOT2API_API_KEY` or the proxy will refuse to start. The volume mount persists your GitHub credentials across container restarts. The examples publish the port on `127.0.0.1` only so the proxy stays local by default.
