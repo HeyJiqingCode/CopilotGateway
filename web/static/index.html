@@ -188,7 +188,7 @@ function modelsPage() {
         const list = (body.data || []).filter(m => m.model_picker_enabled && m.capabilities?.type === 'chat');
         // 系列划分:Claude 按 opus/sonnet/haiku/fable 子系列;Gemini 按 Pro/Flash;
         // 其余品牌取 id 第一段(gpt/kimi/…)。每个系列保留「最新一代的全部型号」:
-        // 取系列内最高版本号,同代型号全部显示;同代若有正式版则剔除 preview 变体。
+        // 只比版本号数字,取最高的一代,该代型号(含 preview/fast 等变体)全部显示。
         const seriesOf = id => {
           const c = /^claude-([a-z]+)/.exec(id);
           if (c) return 'claude-' + c[1];
@@ -206,9 +206,7 @@ function modelsPage() {
         const kept = [];
         for (const arr of groups.values()) {
           const maxVer = Math.max(...arr.map(m => verOf(m.id)));
-          let latest = arr.filter(m => verOf(m.id) === maxVer);
-          if (latest.some(m => !m.preview)) latest = latest.filter(m => !m.preview);
-          kept.push(...latest);
+          kept.push(...arr.filter(m => verOf(m.id) === maxVer));
         }
         // 排序:厂商字母序分组,组内按输入价格降序(旗舰→轻量),同价按 id 字母序
         const priceOf = m => m.billing?.token_prices?.default?.input_price ?? 0;
