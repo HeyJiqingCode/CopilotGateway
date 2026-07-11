@@ -1,4 +1,4 @@
-module github.com/whtsky/copilot2api
+module github.com/HeyJiqingCode/CopilotGateway
 
 go 1.26.0
 

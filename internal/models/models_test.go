@@ -8,8 +8,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/whtsky/copilot2api/internal/copilot"
-	"github.com/whtsky/copilot2api/internal/upstream"
+	"github.com/HeyJiqingCode/CopilotGateway/internal/copilot"
+	"github.com/HeyJiqingCode/CopilotGateway/internal/upstream"
 )
 
 func TestPickEndpoint(t *testing.T) {

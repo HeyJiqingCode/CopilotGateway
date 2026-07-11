@@ -13,13 +13,13 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/whtsky/copilot2api/anthropic"
-	"github.com/whtsky/copilot2api/auth"
-	"github.com/whtsky/copilot2api/internal/copilot"
-	"github.com/whtsky/copilot2api/internal/models"
-	"github.com/whtsky/copilot2api/internal/upstream"
-	"github.com/whtsky/copilot2api/proxy"
-	"github.com/whtsky/copilot2api/web"
+	"github.com/HeyJiqingCode/CopilotGateway/anthropic"
+	"github.com/HeyJiqingCode/CopilotGateway/auth"
+	"github.com/HeyJiqingCode/CopilotGateway/internal/copilot"
+	"github.com/HeyJiqingCode/CopilotGateway/internal/models"
+	"github.com/HeyJiqingCode/CopilotGateway/internal/upstream"
+	"github.com/HeyJiqingCode/CopilotGateway/proxy"
+	"github.com/HeyJiqingCode/CopilotGateway/web"
 )
 
 var version = "dev"

@@ -230,4 +230,3 @@ func TestAnthropicMessagesRequest_FullUnmarshal(t *testing.T) {
 		t.Errorf("Temperature not parsed correctly")
 	}
 }
-

@@ -10,8 +10,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/whtsky/copilot2api/internal/models"
-	"github.com/whtsky/copilot2api/internal/upstream"
+	"github.com/HeyJiqingCode/CopilotGateway/internal/models"
+	"github.com/HeyJiqingCode/CopilotGateway/internal/upstream"
 )
 
 type Handler struct {

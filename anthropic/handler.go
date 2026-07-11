@@ -11,9 +11,9 @@ import (
 	"slices"
 	"time"
 
-	"github.com/whtsky/copilot2api/internal/models"
-	"github.com/whtsky/copilot2api/internal/sse"
-	"github.com/whtsky/copilot2api/internal/upstream"
+	"github.com/HeyJiqingCode/CopilotGateway/internal/models"
+	"github.com/HeyJiqingCode/CopilotGateway/internal/sse"
+	"github.com/HeyJiqingCode/CopilotGateway/internal/upstream"
 )
 
 // Handler handles Anthropic Messages API requests

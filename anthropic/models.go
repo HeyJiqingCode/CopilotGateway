@@ -5,14 +5,14 @@ import (
 	"log/slog"
 	"regexp"
 
-	"github.com/whtsky/copilot2api/internal/models"
+	"github.com/HeyJiqingCode/CopilotGateway/internal/models"
 )
 
 // modelAliases maps model name variants to their Copilot equivalents.
 // Only needed for non-obvious mappings that can't be derived algorithmically.
 var modelAliases = map[string]string{
 	// Non-obvious version mappings (pre-4.5 naming used single-digit versions)
-	"claude-opus-4":  "claude-opus-4.5",
+	"claude-opus-4":   "claude-opus-4.5",
 	"claude-sonnet-4": "claude-sonnet-4", // identity, but here for documentation
 }
 

@@ -65,8 +65,8 @@ func (s *AnthropicSystem) UnmarshalJSON(data []byte) error {
 
 // AnthropicMessage represents a message in the conversation
 type AnthropicMessage struct {
-	Role    string            `json:"role"` // "user" or "assistant"
-	Content AnthropicContent  `json:"content"`
+	Role    string           `json:"role"` // "user" or "assistant"
+	Content AnthropicContent `json:"content"`
 }
 
 // AnthropicContent can be string or []AnthropicContentBlock
@@ -121,7 +121,7 @@ type AnthropicContentBlock struct {
 	Input map[string]interface{} `json:"input,omitempty"`
 
 	// Tool result block fields
-	ToolUseID string           `json:"tool_use_id,omitempty"`
+	ToolUseID string            `json:"tool_use_id,omitempty"`
 	Content   *AnthropicContent `json:"content,omitempty"`
 	IsError   *bool             `json:"is_error,omitempty"`
 
@@ -197,11 +197,11 @@ type AnthropicError struct {
 
 // Error type constants for Anthropic API
 const (
-	AnthropicErrorTypeInvalidRequest   = "invalid_request_error"
-	AnthropicErrorTypeAuthentication   = "authentication_error"
-	AnthropicErrorTypePermission       = "permission_error"
-	AnthropicErrorTypeNotFound         = "not_found_error"
-	AnthropicErrorTypeRateLimit        = "rate_limit_error"
-	AnthropicErrorTypeAPI              = "api_error"
-	AnthropicErrorTypeOverloaded       = "overloaded_error"
+	AnthropicErrorTypeInvalidRequest = "invalid_request_error"
+	AnthropicErrorTypeAuthentication = "authentication_error"
+	AnthropicErrorTypePermission     = "permission_error"
+	AnthropicErrorTypeNotFound       = "not_found_error"
+	AnthropicErrorTypeRateLimit      = "rate_limit_error"
+	AnthropicErrorTypeAPI            = "api_error"
+	AnthropicErrorTypeOverloaded     = "overloaded_error"
 )

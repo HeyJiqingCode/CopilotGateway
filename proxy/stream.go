@@ -10,8 +10,8 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/whtsky/copilot2api/internal/sse"
-	"github.com/whtsky/copilot2api/internal/upstream"
+	"github.com/HeyJiqingCode/CopilotGateway/internal/sse"
+	"github.com/HeyJiqingCode/CopilotGateway/internal/upstream"
 )
 
 // headersSentError wraps an error that occurred after response headers were

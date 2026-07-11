@@ -11,7 +11,7 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/whtsky/copilot2api/internal/copilot"
+	"github.com/HeyJiqingCode/CopilotGateway/internal/copilot"
 )
 
 // TokenProvider abstracts the auth.Client methods needed by Client.
@@ -32,7 +32,7 @@ type Client struct {
 func NewTransport() *http.Transport {
 	return &http.Transport{
 		DialContext:           (&net.Dialer{Timeout: 30 * time.Second}).DialContext,
-		TLSClientConfig:      &tls.Config{MinVersion: tls.VersionTLS12},
+		TLSClientConfig:       &tls.Config{MinVersion: tls.VersionTLS12},
 		MaxIdleConns:          100,
 		MaxIdleConnsPerHost:   20,
 		IdleConnTimeout:       120 * time.Second,
@@ -60,11 +60,11 @@ func NewClient(tp TokenProvider, transport *http.Transport) *Client {
 
 // Request configures a single upstream request.
 type Request struct {
-	Method      string
-	Endpoint    string
-	Body        interface{} // []byte, io.Reader, or JSON-marshalable struct; nil for no body
-	QueryString string      // raw query string to append (without leading '?')
-	Stream      bool        // if true, returns *http.Response instead of reading body
+	Method       string
+	Endpoint     string
+	Body         interface{}       // []byte, io.Reader, or JSON-marshalable struct; nil for no body
+	QueryString  string            // raw query string to append (without leading '?')
+	Stream       bool              // if true, returns *http.Response instead of reading body
 	ExtraHeaders map[string]string // additional headers to set after copilot headers
 }
 

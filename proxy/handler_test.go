@@ -11,9 +11,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/whtsky/copilot2api/internal/copilot"
-	"github.com/whtsky/copilot2api/internal/models"
-	"github.com/whtsky/copilot2api/internal/upstream"
+	"github.com/HeyJiqingCode/CopilotGateway/internal/copilot"
+	"github.com/HeyJiqingCode/CopilotGateway/internal/models"
+	"github.com/HeyJiqingCode/CopilotGateway/internal/upstream"
 )
 
 func TestAddCopilotHeaders(t *testing.T) {

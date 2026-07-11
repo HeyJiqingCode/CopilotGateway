@@ -9,8 +9,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/whtsky/copilot2api/internal/copilot"
-	"github.com/whtsky/copilot2api/internal/upstream"
+	"github.com/HeyJiqingCode/CopilotGateway/internal/copilot"
+	"github.com/HeyJiqingCode/CopilotGateway/internal/upstream"
 	"golang.org/x/sync/singleflight"
 )
 

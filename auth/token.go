@@ -10,7 +10,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/whtsky/copilot2api/internal/copilot"
+	"github.com/HeyJiqingCode/CopilotGateway/internal/copilot"
 )
 
 const (

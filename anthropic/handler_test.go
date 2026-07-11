@@ -128,10 +128,10 @@ func TestNormalizeNativeMessagesBody_KeepsReasoningWhenSupported(t *testing.T) {
 
 func TestInspectReasoningFields(t *testing.T) {
 	tests := []struct {
-		name            string
-		body            string
-		wantOutputCfg   bool
-		wantThinking    bool
+		name          string
+		body          string
+		wantOutputCfg bool
+		wantThinking  bool
 	}{
 		{"both present", `{"output_config":{"effort":"low"},"thinking":{"type":"enabled"}}`, true, true},
 		{"only output_config", `{"output_config":{"effort":"low"}}`, true, false},
