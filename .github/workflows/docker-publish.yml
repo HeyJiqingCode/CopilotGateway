@@ -1,10 +1,7 @@
 name: Build and Publish Docker Image
 
-# main 每次推送出 latest + sha 标签;打 v* tag 出语义化版本标签
 on:
   push:
-    branches:
-      - main
     tags:
       - "v*"
 
@@ -35,21 +32,13 @@ jobs:
           registry: ${{ env.REGISTRY }}
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
-
       - name: Extract image metadata
         id: meta
         uses: docker/metadata-action@v5
         with:
           images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
           tags: |
-            # main 分支每次推送 → latest
-            type=raw,value=latest,enable={{is_default_branch}}
-            # 每次构建都带短 SHA 标签,方便回滚定位
-            type=sha
-            # v2.1.0 -> 2.1.0, 2.1
             type=semver,pattern={{version}}
-            type=semver,pattern={{major}}.{{minor}}
-            # 原始 tag(如 v2.1.0)
             type=ref,event=tag
 
       - name: Build and push
