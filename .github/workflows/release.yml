@@ -1,6 +1,5 @@
 name: Release Binaries
 
-# 打 v* tag 时由 GoReleaser 构建 6 平台二进制并创建 GitHub Release
 on:
   push:
     tags:
