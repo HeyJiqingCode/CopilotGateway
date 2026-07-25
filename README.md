@@ -172,13 +172,21 @@ Add to `~/.claude/settings.json`:
   "env": {
     "ANTHROPIC_BASE_URL": "http://127.0.0.1:7777",
     "ANTHROPIC_AUTH_TOKEN": "your-secret-key",
-    "ANTHROPIC_MODEL": "claude-opus-4.8",
+    "CLAUDE_CODE_ENABLE_GATEWAY_MODEL_DISCOVERY": "0",
+    "ANTHROPIC_DEFAULT_MODEL": "claude-opus-5",
     "ANTHROPIC_DEFAULT_FABLE_MODEL": "claude-fable-5",
-    "ANTHROPIC_DEFAULT_OPUS_MODEL": "claude-opus-4.8",
+    "ANTHROPIC_DEFAULT_FABLE_MODEL_NAME": "Claude Fable 5",
+    "ANTHROPIC_DEFAULT_FABLE_MODEL_DESCRIPTION": "Claude Fable 5 routed through a Github Copilot custom endpoint",
+    "ANTHROPIC_DEFAULT_OPUS_MODEL": "claude-opus-5",
+    "ANTHROPIC_DEFAULT_OPUS_MODEL_NAME": "Claude Opus 5",
+    "ANTHROPIC_DEFAULT_OPUS_MODEL_DESCRIPTION": "Claude Opus 5 routed through a Github Copilot custom endpoint",
     "ANTHROPIC_DEFAULT_SONNET_MODEL": "claude-sonnet-5",
+    "ANTHROPIC_DEFAULT_SONNET_MODEL_NAME": "Claude Sonnet 5",
+    "ANTHROPIC_DEFAULT_SONNET_MODEL_DESCRIPTION": "Claude Sonnet 5 routed through a Github Copilot custom endpoint",
     "ANTHROPIC_DEFAULT_HAIKU_MODEL": "claude-haiku-4.5",
-    "CLAUDE_CODE_SUBAGENT_MODEL": "claude-opus-4.8",
-    "CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC": "1"
+    "ANTHROPIC_DEFAULT_HAIKU_MODEL_NAME": "Claude Haiku 4.5",
+    "ANTHROPIC_DEFAULT_HAIKU_MODEL_DESCRIPTION": "Claude Haiku 4.5 routed through a Github Copilot custom endpoint",
+    "CLAUDE_CODE_SUBAGENT_MODEL": "claude-opus-5"
   },
   "permissions": {
     "deny": [
