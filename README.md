@@ -9,7 +9,7 @@ A lightweight Go gateway/proxy that exposes GitHub Copilot as OpenAI-compatible 
 - **OpenAI API Compatible**: `/v1/chat/completions`, `/v1/responses`, `/v1/models`
 - **Anthropic API Compatible**: `/v1/messages`
 - **Models Cache**: 5-minute cache for `/v1/models` and Anthropic model capability lookups
-- **1M Context Native**: Long-context limits come straight from the Copilot catalog on the base model ID — no `-1m` variants or beta headers needed
+- **1M Context Native**: Long-context limits come straight from the Copilot catalog on the base model ID
 - **API Key Auth**: Required key for all requests — safe to deploy beyond localhost
 - **Auto Authentication**: GitHub Device Flow OAuth with automatic token refresh
 - **Streaming Support**: Full SSE streaming for both OpenAI and Anthropic formats
