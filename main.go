@@ -26,14 +26,33 @@ var version = "dev"
 
 func main() {
 	var (
-		port        = flag.Int("port", 0, "Server port (env: COPILOTGW_PORT, default: 7777)")
-		host        = flag.String("host", "", "Server host (env: COPILOTGW_HOST, default: 127.0.0.1)")
-		tokenDir    = flag.String("token-dir", "", "Token storage directory (env: COPILOTGW_TOKEN_DIR, default: ~/.config/copilotgateway)")
-		apiKey      = flag.String("api-key", "", "Required API key(s) for clients, comma-separated (env: COPILOTGW_API_KEY)")
-		showVersion = flag.Bool("version", false, "Show version and exit")
-		debug       = flag.Bool("debug", false, "Enable debug logging (env: COPILOTGW_DEBUG)")
+		port              = flag.Int("port", 0, "Server port (env: COPILOTGW_PORT, default: 7777)")
+		host              = flag.String("host", "", "Server host (env: COPILOTGW_HOST, default: 127.0.0.1)")
+		tokenDir          = flag.String("token-dir", "", "Token storage directory (env: COPILOTGW_TOKEN_DIR, default: ~/.config/copilotgateway)")
+		apiKey            = flag.String("api-key", "", "Required API key(s) for clients, comma-separated (env: COPILOTGW_API_KEY)")
+		showVersion       = flag.Bool("version", false, "Show version and exit")
+		debug             = flag.Bool("debug", false, "Enable debug logging (env: COPILOTGW_DEBUG)")
+		responsesIDCompat = flag.Bool("responses-id-compat", true, "Normalize drifting Responses output item IDs (env: COPILOTGW_RESPONSES_ID_COMPAT)")
 	)
 	flag.Parse()
+
+	// An explicit CLI setting wins over the environment, including =false.
+	compatFlagSet := false
+	flag.Visit(func(f *flag.Flag) {
+		if f.Name == "responses-id-compat" {
+			compatFlagSet = true
+		}
+	})
+	if !compatFlagSet {
+		if v := os.Getenv("COPILOTGW_RESPONSES_ID_COMPAT"); v != "" {
+			enabled, err := strconv.ParseBool(v)
+			if err != nil {
+				fmt.Fprintln(os.Stderr, "error: COPILOTGW_RESPONSES_ID_COMPAT must be a boolean")
+				os.Exit(1)
+			}
+			*responsesIDCompat = enabled
+		}
+	}
 
 	// Apply debug env var
 	if !*debug {
@@ -131,6 +150,8 @@ func main() {
 
 	// Initialize proxy handler
 	proxyHandler := proxy.NewHandler(authClient, transport, modelsCache)
+	proxyHandler.DisableResponsesIDCompat = !*responsesIDCompat
+	slog.Info("Responses output ID compatibility", "enabled", *responsesIDCompat)
 
 	// Initialize Anthropic handler
 	anthropicHandler := anthropic.NewHandler(authClient, transport, modelsCache)

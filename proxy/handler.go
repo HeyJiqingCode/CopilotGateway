@@ -17,6 +17,11 @@ import (
 type Handler struct {
 	upstream    *upstream.Client
 	modelsCache *models.Cache
+
+	// DisableResponsesIDCompat restores unmodified upstream SSE forwarding.
+	// Configure once before serving requests. No history or cross-request ID
+	// mapping is stored by the compatibility layer.
+	DisableResponsesIDCompat bool
 }
 
 // NewHandler creates a new proxy handler.

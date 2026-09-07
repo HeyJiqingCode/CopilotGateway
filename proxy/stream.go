@@ -65,6 +65,10 @@ func (h *Handler) HandleStreamingRequest(w http.ResponseWriter, r *http.Request,
 // streamResponse streams the SSE response line by line.
 // endpoint is used to select the correct termination strategy.
 func (h *Handler) streamResponse(w http.ResponseWriter, body io.ReadCloser, endpoint string) error {
+	if endpoint == "/responses" && !h.DisableResponsesIDCompat {
+		return streamResponses(w, body)
+	}
+
 	scanner := bufio.NewScanner(body)
 
 	// Increase buffer size to handle large SSE lines (default is 64KB, increase to 1MB)
