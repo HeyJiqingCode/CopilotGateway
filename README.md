@@ -12,7 +12,7 @@ A lightweight Go gateway/proxy that exposes GitHub Copilot as OpenAI-compatible 
 - **1M Context Native**: Long-context limits come straight from the Copilot catalog on the base model ID
 - **API Key Auth**: Required key for all requests — safe to deploy beyond localhost
 - **Auto Authentication**: GitHub Device Flow OAuth with automatic token refresh
-- **Streaming Support**: Full SSE streaming for both OpenAI and Anthropic formats
+- **Streaming Support**: Automatic Responses item ID correlation to prevent duplicate streaming messages in Codex
 - **Direct Passthrough**: Requests are forwarded as-is to the matching endpoint, with no cross-format translation
 - **Web Dashboard**: Showing the live model catalog, enabled only when `COPILOTGW_WEB_*` are configured
 
@@ -79,7 +79,7 @@ docker run -d --name copilotgateway --restart unless-stopped \
   -p 127.0.0.1:7777:7777 \
   -e COPILOTGW_API_KEY=<key1,key2,...> \
   -v ~/.config/copilotgateway:/root/.config/copilotgateway \
-  ghcr.io/heyjiqingcode/copilotgateway:1.0.0
+  ghcr.io/heyjiqingcode/copilotgateway:1.1.0
 ```
 
 **2）Full** — with the web dashboard enabled:
@@ -91,7 +91,7 @@ docker run -d --name copilotgateway --restart unless-stopped \
   -e COPILOTGW_WEB_USERNAME=admin \
   -e COPILOTGW_WEB_PASSWORD=<your_web_password> \
   -v ~/.config/copilotgateway:/root/.config/copilotgateway \
-  ghcr.io/heyjiqingcode/copilotgateway:1.0.0
+  ghcr.io/heyjiqingcode/copilotgateway:1.1.0
 ```
 
 >  See [Configuration](#configuration) for every available variable.
@@ -126,12 +126,13 @@ COPILOTGW_WEB_PASSWORD=<your_web_password> \
 ```
 ./copilotgateway [options]
 
-  -host string       Server host (default "127.0.0.1")
-  -port int          Server port (default 7777)
-  -token-dir string  Token storage directory (default ~/.config/copilotgateway)
-  -api-key string    Required API key(s), comma-separated (env: COPILOTGW_API_KEY)
-  -debug             Enable debug logging
-  -version           Show version and exit
+  -host string          Server host (default "127.0.0.1")
+  -port int             Server port (default 7777)
+  -token-dir string     Token storage directory (default ~/.config/copilotgateway)
+  -api-key string       Required API key(s), comma-separated (env: COPILOTGW_API_KEY)
+  -responses-id-compat  Normalize drifting Responses output item IDs (default true)
+  -debug                Enable debug logging
+  -version              Show version and exit
 ```
 
 > CLI flags take precedence over environment variables.
@@ -145,9 +146,10 @@ COPILOTGW_WEB_PASSWORD=<your_web_password> \
 | `COPILOTGW_PORT` | Server port | `7777` |
 | `COPILOTGW_TOKEN_DIR` | Token storage directory | `~/.config/copilotgateway` |
 | `COPILOTGW_DEBUG` | Enable debug logging (`true`/`false`, `1`/`0`) | `false` |
-| `COPILOTGW_EDITOR_VERSION` | Spoofed editor version header | `vscode/1.127.0` |
-| `COPILOTGW_PLUGIN_VERSION` | Spoofed plugin version header | `copilot-chat/0.55.0` |
-| `COPILOTGW_CHAT_USER_AGENT` | Spoofed Copilot Chat User-Agent | `GitHubCopilotChat/0.55.0` |
+| `COPILOTGW_RESPONSES_ID_COMPAT` | Normalize drifting Responses output item IDs; see [streaming compatibility](#streaming-compatibility) | `true` |
+| `COPILOTGW_EDITOR_VERSION` | Spoofed editor version header | `vscode/1.136.1` |
+| `COPILOTGW_PLUGIN_VERSION` | Spoofed plugin version header | `copilot-chat/0.64.1` |
+| `COPILOTGW_CHAT_USER_AGENT` | Spoofed Copilot Chat User-Agent | `GitHubCopilotChat/0.64.1` |
 | `COPILOTGW_API_VERSION` | GitHub Copilot API version header | `2026-06-01` |
 | `COPILOTGW_WEB_USERNAME` | Web dashboard login username (dashboard enabled only when username & password are both set) | _unset — dashboard disabled_ |
 | `COPILOTGW_WEB_PASSWORD` | Web dashboard login password | _unset — dashboard disabled_ |
@@ -161,6 +163,19 @@ Newer models on Copilot (e.g. Opus 4.6/4.7/4.8, Sonnet 4.6/5, gpt-5.5/5.6) expos
 
 The `/v1/models` gateway uses VS Code-style model metadata headers (`model-access`) and Copilot API version `2026-06-01`, matching the model catalog shape VS Code currently uses for long-context metadata. If VS Code shows a larger context window than this gateway, check that `COPILOTGW_API_VERSION` is not overridden to an older value.
 
+## Streaming compatibility
+
+**Enabled by default** for `/v1/responses` streaming requests with both CLI and Docker startup. No extra flag is needed. Use a gateway build that includes this fix; setting the environment variable does not add it to older versions.
+
+Some Copilot streams change an output item's ID between events, which can cause duplicate streaming messages in Codex. The gateway correlates items by `output_index` within each request and corrects IDs only when drift is detected, covering added, delta, done and final `response.output` events. Normal streams pass through unchanged, text is never deduplicated, and events continue streaming as they arrive.
+
+The complete final `encrypted_content`, tool `call_id` and upstream `response.id` are preserved. Requests and `previous_response_id` are forwarded unchanged; this fix does not add upstream support for `previous_response_id`.
+
+To **disable only for troubleshooting**, set `COPILOTGW_RESPONSES_ID_COMPAT=false` or pass `-responses-id-compat=false` when starting the gateway. An explicit CLI flag takes precedence over the environment variable. Apply the setting by restarting the gateway or recreating the container with the updated configuration.
+
+Disabling restores the upstream ID behavior for new streams. Saved sessions are not rewritten, and disabling or restarting requires no session migration or ID-map recovery: associations exist only for the current stream. A restart can still interrupt requests in progress.
+
+
 ## Usage 
 
 ### Claude Code
@@ -173,10 +188,10 @@ Add to `~/.claude/settings.json`:
     "ANTHROPIC_BASE_URL": "http://127.0.0.1:7777",
     "ANTHROPIC_AUTH_TOKEN": "your-secret-key",
     "CLAUDE_CODE_ENABLE_GATEWAY_MODEL_DISCOVERY": "0",
-    "ANTHROPIC_DEFAULT_MODEL": "claude-opus-5",
-    "ANTHROPIC_DEFAULT_FABLE_MODEL": "claude-fable-5",
-    "ANTHROPIC_DEFAULT_FABLE_MODEL_NAME": "Claude Fable 5",
-    "ANTHROPIC_DEFAULT_FABLE_MODEL_DESCRIPTION": "Claude Fable 5 routed through a Github Copilot custom endpoint",
+    "ANTHROPIC_DEFAULT_MODEL": "claude-opus-5.1",
+    "ANTHROPIC_DEFAULT_FABLE_MODEL": "claude-fable-5.1",
+    "ANTHROPIC_DEFAULT_FABLE_MODEL_NAME": "Claude Fable 5.1",
+    "ANTHROPIC_DEFAULT_FABLE_MODEL_DESCRIPTION": "Claude Fable 5.1 routed through a Github Copilot custom endpoint",
     "ANTHROPIC_DEFAULT_OPUS_MODEL": "claude-opus-5",
     "ANTHROPIC_DEFAULT_OPUS_MODEL_NAME": "Claude Opus 5",
     "ANTHROPIC_DEFAULT_OPUS_MODEL_DESCRIPTION": "Claude Opus 5 routed through a Github Copilot custom endpoint",
