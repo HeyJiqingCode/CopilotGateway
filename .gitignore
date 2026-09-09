@@ -6,6 +6,9 @@ CopilotGateway
 *.so
 *.dylib
 
+# GoReleaser output
+/dist/
+
 # Test
 *.test
 *.out
