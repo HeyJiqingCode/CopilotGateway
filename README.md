@@ -79,7 +79,7 @@ docker run -d --name copilotgateway --restart unless-stopped \
   -p 127.0.0.1:7777:7777 \
   -e COPILOTGW_API_KEY=<key1,key2,...> \
   -v ~/.config/copilotgateway:/root/.config/copilotgateway \
-  ghcr.io/heyjiqingcode/copilotgateway:1.1.0
+  ghcr.io/heyjiqingcode/copilotgateway:1.1.1
 ```
 
 **2）Full** — with the web dashboard enabled:
@@ -91,7 +91,7 @@ docker run -d --name copilotgateway --restart unless-stopped \
   -e COPILOTGW_WEB_USERNAME=admin \
   -e COPILOTGW_WEB_PASSWORD=<your_web_password> \
   -v ~/.config/copilotgateway:/root/.config/copilotgateway \
-  ghcr.io/heyjiqingcode/copilotgateway:1.1.0
+  ghcr.io/heyjiqingcode/copilotgateway:1.1.1
 ```
 
 >  See [Configuration](#configuration) for every available variable.
