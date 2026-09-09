@@ -40,9 +40,14 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	r.Body = http.MaxBytesReader(w, r.Body, upstream.MaxRequestBody) // 10MB limit
+	r.Body = http.MaxBytesReader(w, r.Body, upstream.MaxRequestBody) // Shared gateway HTTP body byte limit.
 	reqBody, err := io.ReadAll(r.Body)
 	if err != nil {
+		var limitErr *http.MaxBytesError
+		if errors.As(err, &limitErr) {
+			WriteAnthropicError(w, http.StatusRequestEntityTooLarge, AnthropicErrorTypeInvalidRequest, upstream.RequestBodyTooLargeMessage())
+			return
+		}
 		WriteAnthropicError(w, http.StatusBadRequest, AnthropicErrorTypeInvalidRequest, fmt.Sprintf("Invalid request body: %v", err))
 		return
 	}

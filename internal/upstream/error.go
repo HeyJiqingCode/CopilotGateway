@@ -8,6 +8,11 @@ import (
 	"net/http"
 )
 
+// RequestBodyTooLargeMessage identifies a gateway rejection, not an upstream error.
+func RequestBodyTooLargeMessage() string {
+	return fmt.Sprintf("Request body too large: gateway limit is %d MiB (%d bytes)", MaxRequestBody/(1<<20), MaxRequestBody)
+}
+
 // UpstreamError represents an error from the upstream API.
 type UpstreamError struct {
 	StatusCode int

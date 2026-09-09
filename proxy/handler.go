@@ -90,7 +90,7 @@ func (h *Handler) handlePassthrough(w http.ResponseWriter, r *http.Request, endp
 			return
 		}
 		if len(bodyBytes) > upstream.MaxRequestBody {
-			WriteOpenAIError(w, http.StatusRequestEntityTooLarge, OpenAIErrorTypeInvalidRequest, "Request body too large")
+			WriteOpenAIError(w, http.StatusRequestEntityTooLarge, OpenAIErrorTypeInvalidRequest, upstream.RequestBodyTooLargeMessage())
 			return
 		}
 		r.Body = io.NopCloser(bytes.NewReader(bodyBytes))
