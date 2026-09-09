@@ -24,9 +24,12 @@ var bodyLimitEndpoints = []string{"/v1/responses", "/v1/chat/completions", "/v1/
 
 // Keep literal boundaries independent of the production constant. Pad valid
 // JSON with whitespace: the limit applies to HTTP bytes, not tokens or the
-// decoded content length. Hash the received body to detect any truncation or
-// re-encoding, including loss of otherwise insignificant whitespace.
+// decoded content length. The mock upstream enforces its own 32 MiB limit;
+// the gateway has a separate 64 MiB resource guard. Hash the received body to
+// detect any truncation or re-encoding, including loss of whitespace.
 func TestRequestBodyLimit(t *testing.T) {
+	const upstreamLimit = 32 << 20
+	const upstreamError = `{"error":{"message":"upstream-specific body limit","code":"upstream_413"}}`
 	sizes := []struct {
 		name string
 		size int
@@ -35,8 +38,10 @@ func TestRequestBodyLimit(t *testing.T) {
 		{"10MiB_plus_1", (10 << 20) + 1},
 		{"32MiB", 32 << 20},
 		{"32MiB_plus_1", (32 << 20) + 1},
+		{"64MiB", 64 << 20},
+		{"64MiB_plus_1", (64 << 20) + 1},
 	}
-	// Run sequentially to bound memory use for the 32 MiB fixtures.
+	// Run sequentially to bound memory use for the large fixtures.
 	for _, endpoint := range bodyLimitEndpoints {
 		for _, stream := range []bool{false, true} {
 			for _, knownLength := range []bool{true, false} {
@@ -71,6 +76,11 @@ func TestRequestBodyLimit(t *testing.T) {
 								return
 							}
 							w.Header().Set("Content-Type", "application/json")
+							if n > upstreamLimit {
+								w.WriteHeader(http.StatusRequestEntityTooLarge)
+								io.WriteString(w, upstreamError)
+								return
+							}
 							if stream {
 								w.Header().Set("Content-Type", "text/event-stream")
 							}
@@ -86,7 +96,7 @@ func TestRequestBodyLimit(t *testing.T) {
 						}
 						w := httptest.NewRecorder()
 						h.ServeHTTP(w, req)
-						if len(body) > 32<<20 {
+						if len(body) > 64<<20 {
 							if w.Code != http.StatusRequestEntityTooLarge {
 								t.Fatalf("got HTTP %d, want 413: %s", w.Code, w.Body.String())
 							}
@@ -103,7 +113,7 @@ func TestRequestBodyLimit(t *testing.T) {
 							if err := json.Unmarshal(w.Body.Bytes(), &result); err != nil {
 								t.Fatalf("invalid gateway error JSON: %v", err)
 							}
-							if result.Error.Type != "invalid_request_error" || result.Error.Message != "Request body too large: gateway limit is 32 MiB (33554432 bytes)" {
+							if result.Error.Type != "invalid_request_error" || result.Error.Message != "Request body too large: gateway limit is 64 MiB (67108864 bytes)" {
 								t.Fatalf("gateway limit error is unclear or incorrect: %+v", result)
 							}
 							if endpoint == "/v1/messages" && result.Type != "error" {
@@ -111,6 +121,12 @@ func TestRequestBodyLimit(t *testing.T) {
 							}
 							if w.Header().Get("Content-Type") != "application/json" {
 								t.Fatal("gateway 413 must be JSON, including for streaming requests")
+							}
+							return
+						}
+						if len(body) > upstreamLimit {
+							if posts.Load() != 1 || w.Code != http.StatusRequestEntityTooLarge || w.Body.String() != upstreamError {
+								t.Fatalf("upstream-bound request was intercepted or its error changed: POSTs %d, HTTP %d: %s", posts.Load(), w.Code, w.Body.String())
 							}
 							return
 						}
