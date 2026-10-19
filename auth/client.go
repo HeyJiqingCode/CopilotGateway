@@ -13,6 +13,9 @@ type Client struct {
 	mu        sync.RWMutex
 	creds     *StoredCredentials
 	refreshMu sync.Mutex // serializes refresh/device-flow operations
+
+	// fetchCopilotToken exchanges the GitHub token; replaceable in tests.
+	fetchCopilotToken func(githubToken string) (*CopilotToken, error)
 }
 
 // NewClient creates a new auth client
@@ -28,8 +31,9 @@ func NewClient(tokenDir string) (*Client, error) {
 	}
 
 	return &Client{
-		storage: storage,
-		creds:   creds,
+		storage:           storage,
+		creds:             creds,
+		fetchCopilotToken: GetCopilotToken,
 	}, nil
 }
 
@@ -65,19 +69,22 @@ func (c *Client) GetValidToken(ctx context.Context) (*CopilotToken, error) {
 	c.mu.RUnlock()
 
 	if hasGitHubToken {
-		if err := c.refreshCopilotToken(); err == nil {
+		err := c.refreshCopilotToken()
+		if err == nil {
 			c.mu.RLock()
 			token := c.creds.CopilotToken
 			c.mu.RUnlock()
 			return token, nil
-		} else {
-			slog.Error("failed to refresh copilot token with stored GitHub token", "error", err)
+		}
+		slog.Error("failed to refresh copilot token with stored GitHub token", "error", err)
+		// A transient failure keeps the stored token; only a rejected one
+		// (cleared by refreshCopilotToken) means the user must sign in again.
+		if !IsAuthStatusError(err) {
+			return nil, err
 		}
 	}
 
-	// Device flow is interactive and must not block request serving.
-	// It should only be triggered at startup via RunDeviceFlowIfNeeded.
-	return nil, fmt.Errorf("authentication required: no valid GitHub token available (run device flow at startup)")
+	return nil, &ReauthRequiredError{}
 }
 
 // GetToken returns a valid Copilot bearer token string. It satisfies the
@@ -171,7 +178,7 @@ func (c *Client) refreshCopilotToken() error {
 	githubToken := c.creds.GitHubToken
 	c.mu.RUnlock()
 
-	copilotToken, err := GetCopilotToken(githubToken)
+	copilotToken, err := c.fetchCopilotToken(githubToken)
 	if err != nil {
 		if IsAuthStatusError(err) {
 			slog.Warn("stored GitHub token is no longer accepted; clearing credentials")

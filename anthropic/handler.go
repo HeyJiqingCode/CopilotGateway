@@ -12,6 +12,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/HeyJiqingCode/CopilotGateway/auth"
 	"github.com/HeyJiqingCode/CopilotGateway/internal/models"
 	"github.com/HeyJiqingCode/CopilotGateway/internal/sse"
 	"github.com/HeyJiqingCode/CopilotGateway/internal/upstream"
@@ -154,6 +155,9 @@ func (h *Handler) handleNativeMessagesPassthrough(w http.ResponseWriter, r *http
 				h.writeRawUpstreamError(w, upstreamErr)
 				return
 			}
+			if writeReauthRequired(w, err) {
+				return
+			}
 			upstream.LogRequestError("native /messages streaming request failed", err)
 			sse.BeginSSE(w)
 			w.WriteHeader(http.StatusBadGateway)
@@ -202,6 +206,9 @@ func (h *Handler) handleNativeMessagesPassthrough(w http.ResponseWriter, r *http
 		var upstreamErr *upstream.UpstreamError
 		if errors.As(err, &upstreamErr) {
 			h.writeRawUpstreamError(w, upstreamErr)
+			return
+		}
+		if writeReauthRequired(w, err) {
 			return
 		}
 		upstream.LogRequestError("native /messages request failed", err)
@@ -398,6 +405,17 @@ func isBlankSSELine(line []byte) bool {
 		}
 	}
 	return len(line) > 0
+}
+
+// writeReauthRequired answers a lost GitHub authorization with a 403
+// permission_error that clients do not retry, carrying the sign-in instructions.
+func writeReauthRequired(w http.ResponseWriter, err error) bool {
+	var reauth *auth.ReauthRequiredError
+	if !errors.As(err, &reauth) {
+		return false
+	}
+	WriteAnthropicError(w, http.StatusForbidden, AnthropicErrorTypePermission, reauth.Error())
+	return true
 }
 
 // WriteAnthropicError writes an error response in Anthropic API format

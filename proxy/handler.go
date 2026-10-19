@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/HeyJiqingCode/CopilotGateway/auth"
 	"github.com/HeyJiqingCode/CopilotGateway/internal/models"
 	"github.com/HeyJiqingCode/CopilotGateway/internal/upstream"
 )
@@ -73,6 +74,9 @@ func (h *Handler) handleModels(w http.ResponseWriter, r *http.Request) {
 			upstreamErr.WriteRawError(w)
 			return
 		}
+		if writeReauthRequired(w, err) {
+			return
+		}
 		upstream.LogRequestError("failed to fetch models", err)
 		WriteOpenAIError(w, http.StatusInternalServerError, OpenAIErrorTypeServerError, "Internal server error")
 		return
@@ -116,7 +120,7 @@ func (h *Handler) handlePassthroughBody(w http.ResponseWriter, r *http.Request, 
 		if err := h.HandleStreamingRequest(w, r, endpoint); err != nil {
 			upstream.LogRequestError("streaming request failed", err, "endpoint", endpoint)
 			var hse *headersSentError
-			if !errors.As(err, &hse) {
+			if !errors.As(err, &hse) && !writeReauthRequired(w, err) {
 				WriteOpenAIError(w, http.StatusBadGateway, OpenAIErrorTypeServerError, "upstream request failed")
 			}
 		}
@@ -128,6 +132,9 @@ func (h *Handler) handlePassthroughBody(w http.ResponseWriter, r *http.Request, 
 		var upstreamErr *upstream.UpstreamError
 		if errors.As(err, &upstreamErr) {
 			upstreamErr.WriteRawError(w)
+			return
+		}
+		if writeReauthRequired(w, err) {
 			return
 		}
 		upstream.LogRequestError("passthrough request failed", err, "endpoint", endpoint)
@@ -186,6 +193,7 @@ type OpenAIError struct {
 const (
 	OpenAIErrorTypeServerError    = "server_error"
 	OpenAIErrorTypeInvalidRequest = "invalid_request_error"
+	OpenAIErrorTypePermission     = "permission_error"
 )
 
 // WriteOpenAIError writes an error response in OpenAI API format
@@ -201,4 +209,21 @@ func WriteOpenAIError(w http.ResponseWriter, statusCode int, errorType, message 
 	}
 
 	json.NewEncoder(w).Encode(errorResp)
+}
+
+// writeReauthRequired answers a lost GitHub authorization with a 403 that
+// clients do not retry, carrying the sign-in instructions in the message.
+func writeReauthRequired(w http.ResponseWriter, err error) bool {
+	var reauth *auth.ReauthRequiredError
+	if !errors.As(err, &reauth) {
+		return false
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusForbidden)
+	json.NewEncoder(w).Encode(OpenAIErrorResponse{Error: OpenAIError{
+		Message: reauth.Error(),
+		Type:    OpenAIErrorTypePermission,
+		Code:    "copilot_auth_required",
+	}})
+	return true
 }
