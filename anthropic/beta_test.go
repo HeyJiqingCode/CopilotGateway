@@ -21,22 +21,37 @@ func (s *stubTokenProvider) GetBaseURL() string                       { return s
 
 type capturedRequest struct {
 	header http.Header
+	raw    []byte
 	body   map[string]json.RawMessage
 }
 
-// sendNativeMessages posts body to the handler and returns what the fake
-// upstream /v1/messages endpoint received.
+// sendNativeMessages posts body to the handler, requires a 200 and returns
+// what the fake upstream /v1/messages endpoint received.
 func sendNativeMessages(t *testing.T, body string, betas ...string) capturedRequest {
+	t.Helper()
+	rec, got := serveNativeMessages(t, body, betas...)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d; body: %s", rec.Code, rec.Body.String())
+	}
+	return got
+}
+
+// serveNativeMessages posts body to the handler against a fake upstream whose
+// catalog has one model with reasoning effort (claude-opus-5.5) and one without
+// (claude-haiku-4.5).
+func serveNativeMessages(t *testing.T, body string, betas ...string) (*httptest.ResponseRecorder, capturedRequest) {
 	t.Helper()
 	var got capturedRequest
 	fakeUpstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		if r.URL.Path == "/models" {
-			w.Write([]byte(`{"data":[{"id":"claude-opus-5.5","supported_endpoints":["/v1/messages"],"capabilities":{"supports":{"reasoning_effort":["low","high"]}}}]}`))
+			w.Write([]byte(`{"data":[{"id":"claude-opus-5.5","supported_endpoints":["/v1/messages"],"capabilities":{"supports":{"reasoning_effort":["low","high"]}}},` +
+				`{"id":"claude-haiku-4.5","supported_endpoints":["/v1/messages"],"capabilities":{"supports":{}}}]}`))
 			return
 		}
 		got.header = r.Header.Clone()
 		raw, _ := io.ReadAll(r.Body)
+		got.raw = raw
 		if err := json.Unmarshal(raw, &got.body); err != nil {
 			t.Errorf("upstream body is not JSON: %v (%s)", err, raw)
 		}
@@ -53,10 +68,7 @@ func sendNativeMessages(t *testing.T, body string, betas ...string) capturedRequ
 	}
 	rec := httptest.NewRecorder()
 	h.ServeHTTP(rec, req)
-	if rec.Code != http.StatusOK {
-		t.Fatalf("expected 200, got %d; body: %s", rec.Code, rec.Body.String())
-	}
-	return got
+	return rec, got
 }
 
 const contextManagementBody = `{"model":"claude-opus-5.5","max_tokens":16,` +

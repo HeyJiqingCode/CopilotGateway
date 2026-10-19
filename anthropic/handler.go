@@ -8,7 +8,6 @@ import (
 	"io"
 	"log/slog"
 	"net/http"
-	"slices"
 	"strings"
 	"time"
 
@@ -54,65 +53,44 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Parse Anthropic request
-	var anthropicReq AnthropicMessagesRequest
-	if err := json.Unmarshal(reqBody, &anthropicReq); err != nil {
+	req, err := parseMessagesRequest(reqBody)
+	if err != nil {
 		WriteAnthropicError(w, http.StatusBadRequest, AnthropicErrorTypeInvalidRequest, fmt.Sprintf("Invalid JSON: %v", err))
 		return
 	}
-
-	// Validate request
-	if err := h.validateRequest(anthropicReq); err != nil {
+	if err := req.validate(); err != nil {
 		WriteAnthropicError(w, http.StatusBadRequest, AnthropicErrorTypeInvalidRequest, fmt.Sprintf("Invalid request: %v", err))
 		return
 	}
 
 	// Resolve model alias (e.g. claude-haiku-4-5-20251001 -> claude-haiku-4.5)
-	resolvedModel := resolveModelAlias(anthropicReq.Model)
-
-	modelChanged := resolvedModel != anthropicReq.Model
-	if modelChanged {
-		slog.Debug("resolved model alias", "from", anthropicReq.Model, "to", resolvedModel)
-		anthropicReq.Model = resolvedModel
+	model := resolveModelAlias(req.model)
+	if model != req.model {
+		slog.Debug("resolved model alias", "from", req.model, "to", model)
 	}
 
 	defer func() {
-		slog.Info("anthropic request", "endpoint", "/v1/messages", "model", anthropicReq.Model, "stream", anthropicReq.Stream, "messages", len(anthropicReq.Messages), "route", "native", "duration_ms", time.Since(start).Milliseconds())
+		slog.Info("anthropic request", "endpoint", "/v1/messages", "model", model, "stream", req.stream, "messages", req.messageCount, "route", "native", "duration_ms", time.Since(start).Milliseconds())
 	}()
 
 	// 能力信息仅用于判断模型是否支持 reasoning effort(驱动下方的剥离逻辑)。
 	// 该端点只服务原生支持 /v1/messages 的 Claude 模型,一律直通上游。
-	modelInfo, _ := h.getModelInfo(r.Context(), anthropicReq.Model)
+	modelInfo, _ := h.getModelInfo(r.Context(), model)
 
-	cacheControlInfo := inspectCacheControl(reqBody)
-	topLevelInfo := inspectTopLevelFields(reqBody)
-	reasoningInfo := inspectReasoningFields(reqBody)
 	// 仅当模型确定不支持 reasoning effort 且客户端确实发了 output_config/thinking 时才剥离。
-	// 两个守卫缺一不可:无能力检查会破坏 opus/sonnet;无存在检查会让每个请求白白重编码。
-	stripReasoning := reasoningInfo.Any() && !modelSupportsReasoningEffort(modelInfo)
+	dropReasoning := (req.has("output_config") || req.has("thinking")) && !modelSupportsReasoningEffort(modelInfo)
 	// 客户端的 anthropic-beta 原样转发;上游仅在带 context-management beta 时接受 context_management。
 	betas := strings.Join(r.Header.Values("anthropic-beta"), ",")
-	stripContextManagement := topLevelInfo.HasContextManagement && !hasContextManagementBeta(betas)
-	slog.Debug("native /messages passthrough request", "model", anthropicReq.Model, "top_level_keys", topLevelInfo.Keys, "anthropic_beta", betas, "has_context_management", topLevelInfo.HasContextManagement, "cache_control_count", cacheControlInfo.Count, "cache_control_scope_count", cacheControlInfo.ScopeCount, "cache_control_paths", cacheControlInfo.Paths, "cache_control_scope_paths", cacheControlInfo.ScopePaths, "strip_reasoning", stripReasoning)
-	// Re-encode the body only when we actually need to mutate it.
-	if modelChanged || cacheControlInfo.ScopeCount > 0 || stripContextManagement || stripReasoning {
-		newBody, err := normalizeNativeMessagesBody(reqBody, resolvedModel, modelChanged, stripContextManagement, stripReasoning)
-		if err != nil {
-			WriteAnthropicError(w, http.StatusBadRequest, AnthropicErrorTypeInvalidRequest, fmt.Sprintf("Invalid JSON: %v", err))
-			return
-		}
-		if cacheControlInfo.ScopeCount > 0 {
-			slog.Debug("normalized native /messages request", "removed_cache_control_scope_paths", cacheControlInfo.ScopePaths)
-		}
-		if stripContextManagement {
-			slog.Debug("normalized native /messages request", "removed_top_level_field", "context_management")
-		}
-		if stripReasoning {
-			slog.Debug("normalized native /messages request", "removed_reasoning_fields_output_config", reasoningInfo.HasOutputConfig, "removed_reasoning_fields_thinking", reasoningInfo.HasThinking)
-		}
-		reqBody = newBody
+	dropContextManagement := req.has("context_management") && !hasContextManagementBeta(betas)
+
+	body, removedScopes, err := req.rewrite(rewriteOptions{model: model, dropContextManagement: dropContextManagement, dropReasoning: dropReasoning})
+	if err != nil {
+		WriteAnthropicError(w, http.StatusBadRequest, AnthropicErrorTypeInvalidRequest, fmt.Sprintf("Invalid JSON: %v", err))
+		return
 	}
-	h.handleNativeMessagesPassthrough(w, r, reqBody, anthropicReq.Stream, betas)
+	slog.Debug("native /messages passthrough request", "model", model, "top_level_keys", req.keys(), "anthropic_beta", betas,
+		"dropped_context_management", dropContextManagement, "dropped_reasoning", dropReasoning, "removed_cache_control_scopes", removedScopes)
+	h.handleNativeMessagesPassthrough(w, r, body, req.stream, betas)
 }
 
 // hasContextManagementBeta reports whether the comma-separated anthropic-beta
@@ -124,22 +102,6 @@ func hasContextManagementBeta(betas string) bool {
 		}
 	}
 	return false
-}
-
-func (h *Handler) validateRequest(req AnthropicMessagesRequest) error {
-	if req.Model == "" {
-		return fmt.Errorf("model is required")
-	}
-
-	if req.MaxTokens <= 0 {
-		return fmt.Errorf("max_tokens must be positive")
-	}
-
-	if len(req.Messages) == 0 && req.System == nil {
-		return fmt.Errorf("either messages or system must be provided")
-	}
-
-	return nil
 }
 
 func (h *Handler) handleNativeMessagesPassthrough(w http.ResponseWriter, r *http.Request, body []byte, stream bool, betas string) {
@@ -257,142 +219,6 @@ func CreateErrorEvent(message string) AnthropicStreamEvent {
 
 func (h *Handler) writeRawUpstreamError(w http.ResponseWriter, upstreamErr *upstream.UpstreamError) {
 	upstreamErr.WriteRawError(w)
-}
-
-// replaceModelInBody replaces the top-level "model" key in a JSON body via a
-// targeted round-trip, preserving all other fields unchanged.
-func replaceModelInBody(body []byte, newModel string) ([]byte, error) {
-	var raw map[string]json.RawMessage
-	if err := json.Unmarshal(body, &raw); err != nil {
-		return nil, err
-	}
-	modelJSON, _ := json.Marshal(newModel)
-	raw["model"] = modelJSON
-	return json.Marshal(raw)
-}
-
-func normalizeNativeMessagesBody(body []byte, newModel string, replaceModel, stripContextManagement, stripReasoning bool) ([]byte, error) {
-	var raw interface{}
-	if err := json.Unmarshal(body, &raw); err != nil {
-		return nil, err
-	}
-
-	obj, ok := raw.(map[string]interface{})
-	if !ok {
-		return nil, fmt.Errorf("request body must be a JSON object")
-	}
-
-	if replaceModel {
-		obj["model"] = newModel
-	}
-
-	if stripContextManagement {
-		delete(obj, "context_management")
-	}
-	if stripReasoning {
-		// 模型不支持 reasoning effort;移除会被上游拒绝的字段
-		// (如 haiku 上的 output_config.effort)。output_config 当前仅承载 effort,整删够用。
-		delete(obj, "output_config")
-		delete(obj, "thinking")
-	}
-	stripCacheControlScope(obj)
-	return json.Marshal(obj)
-}
-
-type topLevelFieldInspection struct {
-	Keys                 []string
-	HasContextManagement bool
-}
-
-func inspectTopLevelFields(body []byte) topLevelFieldInspection {
-	var raw map[string]interface{}
-	if err := json.Unmarshal(body, &raw); err != nil {
-		return topLevelFieldInspection{}
-	}
-
-	keys := make([]string, 0, len(raw))
-	for key := range raw {
-		keys = append(keys, key)
-	}
-	slices.Sort(keys)
-
-	_, hasContextManagement := raw["context_management"]
-	return topLevelFieldInspection{Keys: keys, HasContextManagement: hasContextManagement}
-}
-
-// reasoningFieldInspection 记录请求体顶层是否含 reasoning 相关字段。
-type reasoningFieldInspection struct {
-	HasOutputConfig bool
-	HasThinking     bool
-}
-
-func (i reasoningFieldInspection) Any() bool { return i.HasOutputConfig || i.HasThinking }
-
-// inspectReasoningFields 检测请求体顶层是否带 output_config / thinking
-// (Anthropic 的 reasoning effort 载体)。用轻量 RawMessage 解码避免全量解析。
-func inspectReasoningFields(body []byte) reasoningFieldInspection {
-	var raw map[string]json.RawMessage
-	if err := json.Unmarshal(body, &raw); err != nil {
-		return reasoningFieldInspection{}
-	}
-	_, hasOutputConfig := raw["output_config"]
-	_, hasThinking := raw["thinking"]
-	return reasoningFieldInspection{HasOutputConfig: hasOutputConfig, HasThinking: hasThinking}
-}
-
-type cacheControlInspection struct {
-	Count      int
-	ScopeCount int
-	Paths      []string
-	ScopePaths []string
-}
-
-func inspectCacheControl(body []byte) cacheControlInspection {
-	var raw interface{}
-	if err := json.Unmarshal(body, &raw); err != nil {
-		return cacheControlInspection{}
-	}
-
-	result := cacheControlInspection{}
-	inspectCacheControlValue(raw, "$", &result)
-	return result
-}
-
-func inspectCacheControlValue(v interface{}, path string, result *cacheControlInspection) {
-	switch node := v.(type) {
-	case map[string]interface{}:
-		if cacheControl, ok := node["cache_control"].(map[string]interface{}); ok {
-			result.Count++
-			result.Paths = append(result.Paths, path+".cache_control")
-			if _, hasScope := cacheControl["scope"]; hasScope {
-				result.ScopeCount++
-				result.ScopePaths = append(result.ScopePaths, path+".cache_control.scope")
-			}
-		}
-		for key, child := range node {
-			inspectCacheControlValue(child, path+"."+key, result)
-		}
-	case []interface{}:
-		for i, child := range node {
-			inspectCacheControlValue(child, fmt.Sprintf("%s[%d]", path, i), result)
-		}
-	}
-}
-
-func stripCacheControlScope(v interface{}) {
-	switch node := v.(type) {
-	case map[string]interface{}:
-		if cacheControl, ok := node["cache_control"].(map[string]interface{}); ok {
-			delete(cacheControl, "scope")
-		}
-		for _, child := range node {
-			stripCacheControlScope(child)
-		}
-	case []interface{}:
-		for _, child := range node {
-			stripCacheControlScope(child)
-		}
-	}
 }
 
 // isBlankSSELine reports whether line consists solely of newline characters
