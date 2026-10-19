@@ -29,8 +29,11 @@ type Client struct {
 }
 
 // NewTransport creates a shared http.Transport suitable for upstream requests.
+// A custom dialer or TLS config disables Go's automatic HTTP/2, so it is
+// requested explicitly: concurrent streams then share one Copilot connection.
 func NewTransport() *http.Transport {
 	return &http.Transport{
+		ForceAttemptHTTP2:     true,
 		DialContext:           (&net.Dialer{Timeout: 30 * time.Second}).DialContext,
 		TLSClientConfig:       &tls.Config{MinVersion: tls.VersionTLS12},
 		MaxIdleConns:          100,
