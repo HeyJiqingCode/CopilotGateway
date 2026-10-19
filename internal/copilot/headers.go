@@ -12,9 +12,9 @@ import (
 
 // 默认版本头 — 与 README 中的默认配置保持一致
 const (
-	defaultCopilotUserAgent    = "GitHubCopilotChat/0.64.1"
-	defaultEditorVersion       = "vscode/1.136.1"
-	defaultEditorPluginVersion = "copilot-chat/0.64.1"
+	defaultCopilotUserAgent    = "GitHubCopilotChat/0.70.0"
+	defaultEditorVersion       = "vscode/1.142.0"
+	defaultEditorPluginVersion = "copilot-chat/0.70.0"
 	defaultAPIVersion          = "2026-06-01"
 )
 

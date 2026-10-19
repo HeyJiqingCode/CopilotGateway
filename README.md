@@ -11,21 +11,15 @@ A lightweight Go gateway/proxy that exposes GitHub Copilot as OpenAI-compatible 
 - **Models Cache**: 5-minute cache for `/v1/models` and Anthropic model capability lookups
 - **1M Context Native**: Long-context limits come straight from the Copilot catalog on the base model ID
 - **API Key Auth**: Required key for all requests — safe to deploy beyond localhost
-- **Auto Authentication**: GitHub Device Flow OAuth with automatic token refresh
+- **Auto Authentication**: GitHub Device Flow OAuth; the Copilot token auto-refreshes and its API endpoint (Individual/Business/Enterprise) is detected automatically
+- **In-Client Re-Authentication**: Shows the device-flow code in the client when GitHub authorization is lost, no restart needed
 - **Streaming Support**: Automatic Responses item ID correlation to prevent duplicate streaming messages in Codex
-- **Direct Passthrough**: Requests are forwarded as-is to the matching endpoint, with no cross-format translation
+- **Direct Passthrough**: Requests go straight to the matching upstream endpoint, with no cross-format translation
 - **Web Dashboard**: Showing the live model catalog, enabled only when `COPILOTGW_WEB_*` are configured
-
-## How It Works
-
-- Authenticates with GitHub via Device Flow OAuth
-- Exchanges GitHub token for Copilot API token (auto-refreshes)
-- Passthrough each request straight to the matching endpoint, OpenAI to `/chat/completions` or `/responses`; Anthropic to `/v1/messages`
-- Automatically detects API endpoint from token (Individual/Business/Enterprise)
 
 ## Security
 
-- The gateway refuses to start without `COPILOTGW_API_KEY` or cli flag `-api-key`. 
+- The gateway refuses to start without `COPILOTGW_API_KEY` or CLI flag `-api-key`.
 - Every request must present a matching key, so it is safe to expose beyond localhost.
 - Both of these are accepted in headers: `Authorization: Bearer <key>` or `x-api-key: <key>`.
 - The `/health` endpoint is unauthenticated for load balancer probes.
@@ -43,11 +37,12 @@ A lightweight Go gateway/proxy that exposes GitHub Copilot as OpenAI-compatible 
 
 ## Web Dashboard
 
-A login-protected page at `/` that shows the live model catalog: the latest generation of each model series with expandable per-model details (limits, capabilities, pricing), plus one-click copy of the endpoint URL and gateway API keys.
+A login-protected page at `/` that shows the live model catalog: every callable model with a provider filter and per-model details (limits, capabilities, short- and long-context pricing), a Fetch button that pulls a fresh catalog from upstream, plus one-click copy of the Anthropic/OpenAI base URLs and gateway API keys.
 
 **Disabled by default.** It only exists when **both** `COPILOTGW_WEB_USERNAME` and `COPILOTGW_WEB_PASSWORD` are set, otherwise all web paths return 404 and the gateway behaves as a pure API gateway, exactly as before.
 
-![CopilotGateway Web Dashboard](./assets/copilot-gateway-web.png)
+![CopilotGateway Web Dashboard](./assets/copilot-gateway-web-1.png)
+![CopilotGateway Web Dashboard](./assets/copilot-gateway-web-2.png)
 
 ## Quick Start
 
@@ -79,7 +74,7 @@ docker run -d --name copilotgateway --restart unless-stopped \
   -p 127.0.0.1:7777:7777 \
   -e COPILOTGW_API_KEY=<key1,key2,...> \
   -v ~/.config/copilotgateway:/root/.config/copilotgateway \
-  ghcr.io/heyjiqingcode/copilotgateway:1.1.1
+  ghcr.io/heyjiqingcode/copilotgateway:1.2.0
 ```
 
 **2）Full** — with the web dashboard enabled:
@@ -91,10 +86,10 @@ docker run -d --name copilotgateway --restart unless-stopped \
   -e COPILOTGW_WEB_USERNAME=admin \
   -e COPILOTGW_WEB_PASSWORD=<your_web_password> \
   -v ~/.config/copilotgateway:/root/.config/copilotgateway \
-  ghcr.io/heyjiqingcode/copilotgateway:1.1.1
+  ghcr.io/heyjiqingcode/copilotgateway:1.2.0
 ```
 
->  See [Configuration](#configuration) for every available variable.
+> See [Configuration](#configuration) for every available variable.
 
 ### Start with CLI
 
@@ -159,15 +154,13 @@ Enter the code and the gateway recovers without a restart. The same code is also
 | `COPILOTGW_DEBUG` | Enable debug logging (`true`/`false`, `1`/`0`) | `false` |
 | `COPILOTGW_RESPONSES_ID_COMPAT` | Normalize drifting Responses output item IDs; see [streaming compatibility](#streaming-compatibility) | `true` |
 | `COPILOTGW_MODEL_ROUTES` | JSON map rewriting the requested model on `/v1/chat/completions` and `/v1/responses`, e.g. `{"codex-auto-review":"gpt-5.6-luna"}` for Codex automatic approval review, whose pseudo-model Copilot rejects | _unset — no routes_ |
-| `COPILOTGW_EDITOR_VERSION` | Spoofed editor version header | `vscode/1.136.1` |
-| `COPILOTGW_PLUGIN_VERSION` | Spoofed plugin version header | `copilot-chat/0.64.1` |
-| `COPILOTGW_CHAT_USER_AGENT` | Spoofed Copilot Chat User-Agent | `GitHubCopilotChat/0.64.1` |
+| `COPILOTGW_EDITOR_VERSION` | Spoofed editor version header | `vscode/1.142.0` |
+| `COPILOTGW_PLUGIN_VERSION` | Spoofed plugin version header | `copilot-chat/0.70.0` |
+| `COPILOTGW_CHAT_USER_AGENT` | Spoofed Copilot Chat User-Agent | `GitHubCopilotChat/0.70.0` |
 | `COPILOTGW_API_VERSION` | GitHub Copilot API version header | `2026-06-01` |
 | `COPILOTGW_WEB_USERNAME` | Web dashboard login username (dashboard enabled only when username & password are both set) | _unset — dashboard disabled_ |
 | `COPILOTGW_WEB_PASSWORD` | Web dashboard login password | _unset — dashboard disabled_ |
 | `COPILOTGW_WEB_SESSION_HOURS` | Web dashboard session lifetime (hours) | `24` |
-
-> Environment variables are used as defaults when flags are not provided
 
 ## Context Window
 
@@ -177,7 +170,7 @@ The `/v1/models` gateway uses VS Code-style model metadata headers (`model-acces
 
 ## Streaming compatibility
 
-**Enabled by default** for `/v1/responses` streaming requests with both CLI and Docker startup. No extra flag is needed. Use a gateway build that includes this fix; setting the environment variable does not add it to older versions.
+**Enabled by default** for `/v1/responses` streaming requests with both CLI and Docker startup. No extra flag is needed.
 
 Some Copilot streams change an output item's ID between events, which can cause duplicate streaming messages in Codex. The gateway correlates items by `output_index` within each request and corrects IDs only when drift is detected, covering added, delta, done and final `response.output` events. Normal streams pass through unchanged, text is never deduplicated, and events continue streaming as they arrive.
 
@@ -187,8 +180,7 @@ To **disable only for troubleshooting**, set `COPILOTGW_RESPONSES_ID_COMPAT=fals
 
 Disabling restores the upstream ID behavior for new streams. Saved sessions are not rewritten, and disabling or restarting requires no session migration or ID-map recovery: associations exist only for the current stream. A restart can still interrupt requests in progress.
 
-
-## Usage 
+## Usage
 
 ### Claude Code
 
@@ -199,21 +191,20 @@ Add to `~/.claude/settings.json`:
   "env": {
     "ANTHROPIC_BASE_URL": "http://127.0.0.1:7777",
     "ANTHROPIC_AUTH_TOKEN": "your-secret-key",
-    "CLAUDE_CODE_ENABLE_GATEWAY_MODEL_DISCOVERY": "0",
-    "ANTHROPIC_DEFAULT_MODEL": "claude-opus-5.1",
-    "ANTHROPIC_DEFAULT_FABLE_MODEL": "claude-fable-5.1",
+    "ANTHROPIC_DEFAULT_MODEL": "claude-opus-5-5",
+    "ANTHROPIC_DEFAULT_FABLE_MODEL": "claude-fable-5-1",
     "ANTHROPIC_DEFAULT_FABLE_MODEL_NAME": "Claude Fable 5.1",
     "ANTHROPIC_DEFAULT_FABLE_MODEL_DESCRIPTION": "Claude Fable 5.1 routed through a Github Copilot custom endpoint",
-    "ANTHROPIC_DEFAULT_OPUS_MODEL": "claude-opus-5",
-    "ANTHROPIC_DEFAULT_OPUS_MODEL_NAME": "Claude Opus 5",
-    "ANTHROPIC_DEFAULT_OPUS_MODEL_DESCRIPTION": "Claude Opus 5 routed through a Github Copilot custom endpoint",
-    "ANTHROPIC_DEFAULT_SONNET_MODEL": "claude-sonnet-5",
-    "ANTHROPIC_DEFAULT_SONNET_MODEL_NAME": "Claude Sonnet 5",
-    "ANTHROPIC_DEFAULT_SONNET_MODEL_DESCRIPTION": "Claude Sonnet 5 routed through a Github Copilot custom endpoint",
-    "ANTHROPIC_DEFAULT_HAIKU_MODEL": "claude-haiku-4.5",
-    "ANTHROPIC_DEFAULT_HAIKU_MODEL_NAME": "Claude Haiku 4.5",
-    "ANTHROPIC_DEFAULT_HAIKU_MODEL_DESCRIPTION": "Claude Haiku 4.5 routed through a Github Copilot custom endpoint",
-    "CLAUDE_CODE_SUBAGENT_MODEL": "claude-opus-5"
+    "ANTHROPIC_DEFAULT_OPUS_MODEL": "claude-opus-5-5",
+    "ANTHROPIC_DEFAULT_OPUS_MODEL_NAME": "Claude Opus 5.5",
+    "ANTHROPIC_DEFAULT_OPUS_MODEL_DESCRIPTION": "Claude Opus 5.5 routed through a Github Copilot custom endpoint",
+    "ANTHROPIC_DEFAULT_SONNET_MODEL": "claude-sonnet-5-5",
+    "ANTHROPIC_DEFAULT_SONNET_MODEL_NAME": "Claude Sonnet 5.5",
+    "ANTHROPIC_DEFAULT_SONNET_MODEL_DESCRIPTION": "Claude Sonnet 5.5 routed through a Github Copilot custom endpoint",
+    "ANTHROPIC_DEFAULT_HAIKU_MODEL": "claude-haiku-5-5",
+    "ANTHROPIC_DEFAULT_HAIKU_MODEL_NAME": "Claude Haiku 5.5",
+    "ANTHROPIC_DEFAULT_HAIKU_MODEL_DESCRIPTION": "Claude Haiku 5.5 routed through a Github Copilot custom endpoint",
+    "CLAUDE_CODE_SUBAGENT_MODEL": "claude-opus-5-5"
   },
   "permissions": {
     "deny": [
@@ -228,11 +219,11 @@ Add to `~/.claude/settings.json`:
 Add to `~/.codex/config.toml`. With `env_key`, Codex reads the gateway key from an environment variable instead of storing it in the config file — export it before launching: `export COPILOTGATEWAY_API_KEY=<your-secret-key>`.
 
 ```toml
-model = "gpt-5.6-sol"
+model = "gpt-6.1-sol"
 model_provider = "copilotgateway"
-model_reasoning_effort = "xhigh"
+model_reasoning_effort = "high"
 model_context_window = 1050000
-web_search = "disabled"
+web_search = "live"
 
 [model_providers.copilotgateway]
 name = "copilotgateway"
