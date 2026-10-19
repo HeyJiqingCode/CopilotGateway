@@ -19,7 +19,7 @@ func TestNormalizeNativeMessagesBody_RemovesCacheControlScope(t *testing.T) {
 		"max_tokens": 16
 	}`)
 
-	normalized, err := normalizeNativeMessagesBody(body, "claude-opus-4.6", true, false)
+	normalized, err := normalizeNativeMessagesBody(body, "claude-opus-4.6", true, true, false)
 	if err != nil {
 		t.Fatalf("normalizeNativeMessagesBody returned error: %v", err)
 	}
@@ -71,7 +71,7 @@ func TestNormalizeNativeMessagesBody_StripsReasoningWhenUnsupported(t *testing.T
 		"max_tokens": 16
 	}`)
 
-	normalized, err := normalizeNativeMessagesBody(body, "claude-haiku-4.5", false, true)
+	normalized, err := normalizeNativeMessagesBody(body, "claude-haiku-4.5", false, true, true)
 	if err != nil {
 		t.Fatalf("normalizeNativeMessagesBody returned error: %v", err)
 	}
@@ -108,7 +108,7 @@ func TestNormalizeNativeMessagesBody_KeepsReasoningWhenSupported(t *testing.T) {
 		"max_tokens": 16
 	}`)
 
-	normalized, err := normalizeNativeMessagesBody(body, "claude-opus-4.8", false, false)
+	normalized, err := normalizeNativeMessagesBody(body, "claude-opus-4.8", false, true, false)
 	if err != nil {
 		t.Fatalf("normalizeNativeMessagesBody returned error: %v", err)
 	}

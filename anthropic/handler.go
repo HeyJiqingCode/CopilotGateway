@@ -9,6 +9,7 @@ import (
 	"log/slog"
 	"net/http"
 	"slices"
+	"strings"
 	"time"
 
 	"github.com/HeyJiqingCode/CopilotGateway/internal/models"
@@ -88,10 +89,13 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// 仅当模型确定不支持 reasoning effort 且客户端确实发了 output_config/thinking 时才剥离。
 	// 两个守卫缺一不可:无能力检查会破坏 opus/sonnet;无存在检查会让每个请求白白重编码。
 	stripReasoning := reasoningInfo.Any() && !modelSupportsReasoningEffort(modelInfo)
-	slog.Debug("native /messages passthrough request", "model", anthropicReq.Model, "top_level_keys", topLevelInfo.Keys, "has_context_management", topLevelInfo.HasContextManagement, "cache_control_count", cacheControlInfo.Count, "cache_control_scope_count", cacheControlInfo.ScopeCount, "cache_control_paths", cacheControlInfo.Paths, "cache_control_scope_paths", cacheControlInfo.ScopePaths, "strip_reasoning", stripReasoning)
+	// 客户端的 anthropic-beta 原样转发;上游仅在带 context-management beta 时接受 context_management。
+	betas := strings.Join(r.Header.Values("anthropic-beta"), ",")
+	stripContextManagement := topLevelInfo.HasContextManagement && !hasContextManagementBeta(betas)
+	slog.Debug("native /messages passthrough request", "model", anthropicReq.Model, "top_level_keys", topLevelInfo.Keys, "anthropic_beta", betas, "has_context_management", topLevelInfo.HasContextManagement, "cache_control_count", cacheControlInfo.Count, "cache_control_scope_count", cacheControlInfo.ScopeCount, "cache_control_paths", cacheControlInfo.Paths, "cache_control_scope_paths", cacheControlInfo.ScopePaths, "strip_reasoning", stripReasoning)
 	// Re-encode the body only when we actually need to mutate it.
-	if modelChanged || cacheControlInfo.ScopeCount > 0 || topLevelInfo.HasContextManagement || stripReasoning {
-		newBody, err := normalizeNativeMessagesBody(reqBody, resolvedModel, modelChanged, stripReasoning)
+	if modelChanged || cacheControlInfo.ScopeCount > 0 || stripContextManagement || stripReasoning {
+		newBody, err := normalizeNativeMessagesBody(reqBody, resolvedModel, modelChanged, stripContextManagement, stripReasoning)
 		if err != nil {
 			WriteAnthropicError(w, http.StatusBadRequest, AnthropicErrorTypeInvalidRequest, fmt.Sprintf("Invalid JSON: %v", err))
 			return
@@ -99,7 +103,7 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		if cacheControlInfo.ScopeCount > 0 {
 			slog.Debug("normalized native /messages request", "removed_cache_control_scope_paths", cacheControlInfo.ScopePaths)
 		}
-		if topLevelInfo.HasContextManagement {
+		if stripContextManagement {
 			slog.Debug("normalized native /messages request", "removed_top_level_field", "context_management")
 		}
 		if stripReasoning {
@@ -107,7 +111,18 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 		reqBody = newBody
 	}
-	h.handleNativeMessagesPassthrough(w, r, reqBody, anthropicReq.Stream)
+	h.handleNativeMessagesPassthrough(w, r, reqBody, anthropicReq.Stream, betas)
+}
+
+// hasContextManagementBeta reports whether the comma-separated anthropic-beta
+// value enables context management (e.g. context-management-2025-06-27).
+func hasContextManagementBeta(betas string) bool {
+	for _, beta := range strings.Split(betas, ",") {
+		if strings.HasPrefix(strings.TrimSpace(beta), "context-management-") {
+			return true
+		}
+	}
+	return false
 }
 
 func (h *Handler) validateRequest(req AnthropicMessagesRequest) error {
@@ -126,9 +141,13 @@ func (h *Handler) validateRequest(req AnthropicMessagesRequest) error {
 	return nil
 }
 
-func (h *Handler) handleNativeMessagesPassthrough(w http.ResponseWriter, r *http.Request, body []byte, stream bool) {
+func (h *Handler) handleNativeMessagesPassthrough(w http.ResponseWriter, r *http.Request, body []byte, stream bool, betas string) {
+	var extraHeaders map[string]string
+	if betas != "" {
+		extraHeaders = map[string]string{"anthropic-beta": betas}
+	}
 	if stream {
-		resp, _, err := h.upstream.Do(r.Context(), upstream.Request{Endpoint: "/v1/messages", Body: body, Stream: true, QueryString: r.URL.RawQuery})
+		resp, _, err := h.upstream.Do(r.Context(), upstream.Request{Endpoint: "/v1/messages", Body: body, Stream: true, QueryString: r.URL.RawQuery, ExtraHeaders: extraHeaders})
 		if err != nil {
 			var upstreamErr *upstream.UpstreamError
 			if errors.As(err, &upstreamErr) {
@@ -178,7 +197,7 @@ func (h *Handler) handleNativeMessagesPassthrough(w http.ResponseWriter, r *http
 		return
 	}
 
-	_, respData, err := h.upstream.Do(r.Context(), upstream.Request{Endpoint: "/v1/messages", Body: body, QueryString: r.URL.RawQuery})
+	_, respData, err := h.upstream.Do(r.Context(), upstream.Request{Endpoint: "/v1/messages", Body: body, QueryString: r.URL.RawQuery, ExtraHeaders: extraHeaders})
 	if err != nil {
 		var upstreamErr *upstream.UpstreamError
 		if errors.As(err, &upstreamErr) {
@@ -245,7 +264,7 @@ func replaceModelInBody(body []byte, newModel string) ([]byte, error) {
 	return json.Marshal(raw)
 }
 
-func normalizeNativeMessagesBody(body []byte, newModel string, replaceModel, stripReasoning bool) ([]byte, error) {
+func normalizeNativeMessagesBody(body []byte, newModel string, replaceModel, stripContextManagement, stripReasoning bool) ([]byte, error) {
 	var raw interface{}
 	if err := json.Unmarshal(body, &raw); err != nil {
 		return nil, err
@@ -260,7 +279,9 @@ func normalizeNativeMessagesBody(body []byte, newModel string, replaceModel, str
 		obj["model"] = newModel
 	}
 
-	delete(obj, "context_management")
+	if stripContextManagement {
+		delete(obj, "context_management")
+	}
 	if stripReasoning {
 		// 模型不支持 reasoning effort;移除会被上游拒绝的字段
 		// (如 haiku 上的 output_config.effort)。output_config 当前仅承载 effort,整删够用。
