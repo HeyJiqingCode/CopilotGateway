@@ -33,6 +33,7 @@ func main() {
 		showVersion       = flag.Bool("version", false, "Show version and exit")
 		debug             = flag.Bool("debug", false, "Enable debug logging (env: COPILOTGW_DEBUG)")
 		responsesIDCompat = flag.Bool("responses-id-compat", true, "Normalize drifting Responses output item IDs (env: COPILOTGW_RESPONSES_ID_COMPAT)")
+		modelRoutes       = flag.String("model-routes", "", "JSON map of model routes for /v1/chat/completions and /v1/responses, e.g. {\"codex-auto-review\":\"gpt-5.6-luna\"} (env: COPILOTGW_MODEL_ROUTES)")
 	)
 	flag.Parse()
 
@@ -89,6 +90,9 @@ func main() {
 	if *apiKey == "" {
 		*apiKey = os.Getenv("COPILOTGW_API_KEY")
 	}
+	if *modelRoutes == "" {
+		*modelRoutes = os.Getenv("COPILOTGW_MODEL_ROUTES")
+	}
 
 	if *showVersion {
 		fmt.Printf("copilotgateway version %s\n", version)
@@ -102,6 +106,12 @@ func main() {
 	apiKeys := auth.ParseAPIKeys(*apiKey)
 	if len(apiKeys) == 0 {
 		fmt.Fprintln(os.Stderr, "error: an API key is required. Set COPILOTGW_API_KEY (or -api-key), comma-separated for multiple.")
+		os.Exit(1)
+	}
+
+	routes, err := proxy.ParseModelRoutes(*modelRoutes)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "error: invalid COPILOTGW_MODEL_ROUTES (or -model-routes):", err)
 		os.Exit(1)
 	}
 
@@ -152,6 +162,10 @@ func main() {
 	proxyHandler := proxy.NewHandler(authClient, transport, modelsCache)
 	proxyHandler.DisableResponsesIDCompat = !*responsesIDCompat
 	slog.Info("Responses output ID compatibility", "enabled", *responsesIDCompat)
+	proxyHandler.ModelRoutes = routes
+	if len(routes) > 0 {
+		slog.Info("model routes configured", "routes", routes)
+	}
 
 	// Initialize Anthropic handler
 	anthropicHandler := anthropic.NewHandler(authClient, transport, modelsCache)

@@ -131,6 +131,7 @@ COPILOTGW_WEB_PASSWORD=<your_web_password> \
   -token-dir string     Token storage directory (default ~/.config/copilotgateway)
   -api-key string       Required API key(s), comma-separated (env: COPILOTGW_API_KEY)
   -responses-id-compat  Normalize drifting Responses output item IDs (default true)
+  -model-routes string  JSON model route map for /v1/chat/completions and /v1/responses (env: COPILOTGW_MODEL_ROUTES)
   -debug                Enable debug logging
   -version              Show version and exit
 ```
@@ -147,6 +148,7 @@ COPILOTGW_WEB_PASSWORD=<your_web_password> \
 | `COPILOTGW_TOKEN_DIR` | Token storage directory | `~/.config/copilotgateway` |
 | `COPILOTGW_DEBUG` | Enable debug logging (`true`/`false`, `1`/`0`) | `false` |
 | `COPILOTGW_RESPONSES_ID_COMPAT` | Normalize drifting Responses output item IDs; see [streaming compatibility](#streaming-compatibility) | `true` |
+| `COPILOTGW_MODEL_ROUTES` | JSON map rewriting the requested model on `/v1/chat/completions` and `/v1/responses`, e.g. `{"codex-auto-review":"gpt-5.6-luna"}` for Codex automatic approval review, whose pseudo-model Copilot rejects | _unset — no routes_ |
 | `COPILOTGW_EDITOR_VERSION` | Spoofed editor version header | `vscode/1.136.1` |
 | `COPILOTGW_PLUGIN_VERSION` | Spoofed plugin version header | `copilot-chat/0.64.1` |
 | `COPILOTGW_CHAT_USER_AGENT` | Spoofed Copilot Chat User-Agent | `GitHubCopilotChat/0.64.1` |
