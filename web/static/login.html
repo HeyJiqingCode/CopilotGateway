@@ -3,69 +3,62 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<link rel="icon" href="data:,">
-<title>登录 · CopilotGateway</title>
-<script src="https://cdn.tailwindcss.com"></script>
+<link rel="icon" type="image/svg+xml" href="/web/assets/favicon.svg">
+<link rel="icon" type="image/png" sizes="32x32" href="/web/assets/favicon-32.png">
+<link rel="apple-touch-icon" href="/web/assets/apple-touch-icon.png">
+<title>CopilotGateway</title>
+<link rel="stylesheet" href="/web/assets/app.css">
+<script src="/web/assets/app.js"></script>
 </head>
-<body class="bg-gray-50 min-h-screen flex items-center justify-center font-sans text-gray-900">
-<button id="lang-toggle" aria-label="Switch language"
-  class="fixed top-4 right-5 text-sm text-gray-500 hover:text-indigo-600 transition-colors"></button>
-<main class="w-full max-w-sm px-4">
-  <div class="bg-white rounded-2xl border border-gray-200 p-8">
-    <h1 class="text-xl font-semibold text-center">CopilotGateway</h1>
-    <p class="text-sm text-gray-500 text-center mt-1 mb-6">Lightweight GitHub Copilot Proxy</p>
-    <form id="login-form" class="space-y-4">
-      <div>
-        <label for="username" id="label-username" class="block text-sm text-gray-600 mb-1"></label>
-        <input id="username" name="username" type="text" required autocomplete="username"
-          class="w-full rounded-xl border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-600 focus:border-transparent">
-      </div>
-      <div>
-        <label for="password" id="label-password" class="block text-sm text-gray-600 mb-1"></label>
-        <input id="password" name="password" type="password" required autocomplete="current-password"
-          class="w-full rounded-xl border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-600 focus:border-transparent">
-      </div>
-      <p id="error" class="hidden text-sm text-red-600 break-words"></p>
-      <button type="submit" id="btn-submit"
-        class="w-full rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium py-2.5 transition-colors">
-      </button>
+<body class="login-body">
+<button id="lang-toggle" class="pill-btn login-lang" type="button"></button>
+<main class="login-page">
+  <div class="card login-card">
+    <div class="brand"><span class="brand-mark"><svg class="icon" aria-hidden="true"><use href="/web/assets/icons.svg#waypoints"></use></svg></span>CopilotGateway</div>
+    <form id="login-form">
+      <fieldset id="login-fields">
+        <label class="field">
+          <span class="field-label" id="label-username"></span>
+          <input class="input" id="username" name="username" type="text" required autocomplete="username" autofocus>
+        </label>
+        <label class="field">
+          <span class="field-label" id="label-password"></span>
+          <input class="input" id="password" name="password" type="password" required autocomplete="current-password">
+        </label>
+        <button class="btn-primary" type="submit" id="btn-submit"></button>
+      </fieldset>
     </form>
   </div>
 </main>
 <script>
-// 登录页文案字典:与目录页共用 localStorage 的 cgw_lang,首次跟随浏览器语言
 const I18N = {
   zh: { docTitle: '登录 · CopilotGateway', username: '用户名', password: '密码', submit: '登录',
-        badCred: '用户名或密码错误', fail: '登录失败,请重试', toggle: 'EN' },
+        badCred: '用户名或密码错误', fail: '登录失败，请稍后重试', toggle: 'English' },
   en: { docTitle: 'Sign in · CopilotGateway', username: 'Username', password: 'Password', submit: 'Sign in',
-        badCred: 'Invalid username or password', fail: 'Sign-in failed, please retry', toggle: '中文' },
+        badCred: 'Invalid username or password', fail: 'Sign-in failed, please try again', toggle: '中文' },
 };
-let lang = localStorage.getItem('cgw_lang') || (navigator.language.startsWith('zh') ? 'zh' : 'en');
+let lang = CGW.getLang();
+const t = key => I18N[lang][key];
 
-// 应用当前语言到页面所有文案
 function applyLang() {
-  const d = I18N[lang] || I18N.zh;
-  document.title = d.docTitle;
-  document.documentElement.lang = lang === 'zh' ? 'zh-CN' : 'en';
-  document.getElementById('label-username').textContent = d.username;
-  document.getElementById('label-password').textContent = d.password;
-  document.getElementById('btn-submit').textContent = d.submit;
-  document.getElementById('lang-toggle').textContent = d.toggle;
+  CGW.setLang(lang);
+  document.title = t('docTitle');
+  document.getElementById('label-username').textContent = t('username');
+  document.getElementById('label-password').textContent = t('password');
+  document.getElementById('btn-submit').textContent = t('submit');
+  document.getElementById('lang-toggle').textContent = t('toggle');
 }
 applyLang();
 
 document.getElementById('lang-toggle').addEventListener('click', () => {
   lang = lang === 'zh' ? 'en' : 'zh';
-  localStorage.setItem('cgw_lang', lang);
   applyLang();
-  document.getElementById('error').classList.add('hidden');
 });
 
 document.getElementById('login-form').addEventListener('submit', async (e) => {
   e.preventDefault();
-  const d = I18N[lang] || I18N.zh;
-  const err = document.getElementById('error');
-  err.classList.add('hidden');
+  const fields = document.getElementById('login-fields');
+  fields.disabled = true;
   const resp = await fetch('/auth/login', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -75,9 +68,8 @@ document.getElementById('login-form').addEventListener('submit', async (e) => {
     }),
   }).catch(() => null);
   if (resp && resp.ok) { location.href = '/'; return; }
-  // 错误文案由前端本地化,不透传服务端的中文消息
-  err.textContent = resp && resp.status === 401 ? d.badCred : d.fail;
-  err.classList.remove('hidden');
+  fields.disabled = false;
+  CGW.toast(resp && resp.status === 401 ? t('badCred') : t('fail'), 'error');
 });
 </script>
 </body>

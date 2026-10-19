@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"log/slog"
-	"strings"
 	"sync"
 	"time"
 
@@ -135,6 +134,24 @@ func (c *Cache) get(ctx context.Context) ([]byte, map[string]*Info, error) {
 	return d.raw, d.parsed, nil
 }
 
+// Refresh 立即从上游重新拉取目录并替换缓存,不等 TTL 过期;失败时保留原有缓存。
+func (c *Cache) Refresh(ctx context.Context) error {
+	_, err, _ := c.sf.Do("refresh", func() (interface{}, error) {
+		d, err := c.fetch(context.WithoutCancel(ctx))
+		if err != nil {
+			return nil, err
+		}
+		c.mu.Lock()
+		c.data = d
+		c.valid = true
+		c.cachedAt = time.Now()
+		c.mu.Unlock()
+		slog.Debug("models cache refreshed on demand", "count", len(d.parsed))
+		return nil, nil
+	})
+	return err
+}
+
 func (c *Cache) fetch(ctx context.Context) (cacheData, error) {
 	_, respData, err := c.upstream.Do(ctx, upstream.Request{
 		Method:       "GET",
@@ -158,55 +175,12 @@ func (c *Cache) fetch(ctx context.Context) (cacheData, error) {
 	return cacheData{raw: respData, parsed: parsed}, nil
 }
 
-// PickEndpoint returns the first endpoint from preferred that the model
-// supports, or "" if none match. Returns "" when info is nil (unknown model),
-// letting callers fall back to default behavior.
-func PickEndpoint(info *Info, preferred []string) string {
-	if info == nil {
-		return ""
-	}
-	for _, ep := range preferred {
-		if SupportsEndpoint(info, ep) {
-			return ep
-		}
-	}
-	return ""
-}
-
-// SupportsEndpoint reports whether info supports the given endpoint.
-func SupportsEndpoint(info *Info, endpoint string) bool {
-	if info == nil {
-		return false
-	}
-
-	target := normalizeEndpoint(endpoint)
-	for _, ep := range info.SupportedEndpoints {
-		if normalizeEndpoint(ep) == target {
-			return true
-		}
-	}
-	return false
-}
-
 // SupportsReasoningEffort 报告模型是否接受 reasoning effort(output_config.effort / thinking)。
 // 模型通过非空的 capabilities.supports.reasoning_effort 数组声明该能力。
 // 未知模型(info == nil)返回 true —— 保守地不剥离请求字段,交由上游裁决。
-// 注意方向与 SupportsEndpoint(nil)==false 相反:此处「保守」= 别改请求体。
 func SupportsReasoningEffort(info *Info) bool {
 	if info == nil {
 		return true
 	}
 	return len(info.Capabilities.Supports.ReasoningEffort) > 0
-}
-
-func normalizeEndpoint(endpoint string) string {
-	normalized := strings.TrimSpace(endpoint)
-	normalized = strings.TrimPrefix(normalized, "/v1")
-	if normalized == "" {
-		return "/"
-	}
-	if !strings.HasPrefix(normalized, "/") {
-		normalized = "/" + normalized
-	}
-	return normalized
 }

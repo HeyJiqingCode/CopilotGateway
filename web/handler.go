@@ -44,6 +44,8 @@ func ConfigFromEnv() (Config, bool) {
 type ModelsSource interface {
 	GetRaw(ctx context.Context) ([]byte, error)
 	CachedAt() time.Time
+	// Refresh 绕过缓存期限,立即从上游重新拉取。
+	Refresh(ctx context.Context) error
 }
 
 // Handler 承载 web UI 全部路由:页面、登录会话与数据端点。
@@ -65,7 +67,37 @@ func (h *Handler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("POST /auth/logout", h.handleLogout)
 	mux.HandleFunc("GET /auth/session", h.handleSession)
 	mux.HandleFunc("GET /web/api/models", h.handleModels)
+	mux.HandleFunc("POST /web/api/models/refresh", h.handleModelsRefresh)
 	mux.HandleFunc("GET /web/api/config", h.handleConfig)
+	mux.HandleFunc("GET /web/assets/{file}", handleAsset)
+}
+
+// assetTypes 是登录页和目录页共用的静态资源白名单;登录前也要能加载。
+var assetTypes = map[string]string{
+	"app.css":              "text/css; charset=utf-8",
+	"app.js":               "text/javascript; charset=utf-8",
+	"icons.svg":            "image/svg+xml",
+	"favicon.svg":          "image/svg+xml",
+	"favicon-32.png":       "image/png",
+	"apple-touch-icon.png": "image/png",
+}
+
+func handleAsset(w http.ResponseWriter, r *http.Request) {
+	name := r.PathValue("file")
+	contentType, ok := assetTypes[name]
+	if !ok {
+		http.NotFound(w, r)
+		return
+	}
+	data, err := staticFS.ReadFile("static/" + name)
+	if err != nil {
+		http.NotFound(w, r)
+		return
+	}
+	w.Header().Set("Content-Type", contentType)
+	// 资源随二进制发布;每次校验,升级后不会拿到旧样式。
+	w.Header().Set("Cache-Control", "no-cache")
+	_, _ = w.Write(data)
 }
 
 // currentUser 从会话 cookie 解析当前登录用户。
@@ -145,14 +177,14 @@ func (h *Handler) handleModels(w http.ResponseWriter, r *http.Request) {
 	}
 	raw, err := h.models.GetRaw(r.Context())
 	if err != nil {
-		writeJSON(w, http.StatusBadGateway, map[string]string{"error": "上游模型列表拉取失败: " + err.Error()})
+		writeJSON(w, http.StatusBadGateway, map[string]string{"error": err.Error()})
 		return
 	}
 	var upstreamBody struct {
 		Data json.RawMessage `json:"data"`
 	}
 	if err := json.Unmarshal(raw, &upstreamBody); err != nil {
-		writeJSON(w, http.StatusBadGateway, map[string]string{"error": "上游响应格式异常: " + err.Error()})
+		writeJSON(w, http.StatusBadGateway, map[string]string{"error": "invalid upstream models response: " + err.Error()})
 		return
 	}
 	writeJSON(w, http.StatusOK, struct {
@@ -161,13 +193,27 @@ func (h *Handler) handleModels(w http.ResponseWriter, r *http.Request) {
 	}{h.models.CachedAt(), upstreamBody.Data})
 }
 
-// handleConfig 返回接入信息(API key 仅对已登录会话下发)。
-func (h *Handler) handleConfig(w http.ResponseWriter, r *http.Request) {
+// handleModelsRefresh 立即从上游重新拉取目录,再返回与 GET 相同的数据。
+func (h *Handler) handleModelsRefresh(w http.ResponseWriter, r *http.Request) {
 	if _, ok := h.currentUser(r); !ok {
 		writeJSON(w, http.StatusUnauthorized, map[string]string{"error": "需要登录后访问"})
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"api_keys": h.cfg.APIKeys})
+	if err := h.models.Refresh(r.Context()); err != nil {
+		writeJSON(w, http.StatusBadGateway, map[string]string{"error": err.Error()})
+		return
+	}
+	h.handleModels(w, r)
+}
+
+// handleConfig 返回接入信息(API key 仅对已登录会话下发)和当前用户。
+func (h *Handler) handleConfig(w http.ResponseWriter, r *http.Request) {
+	username, ok := h.currentUser(r)
+	if !ok {
+		writeJSON(w, http.StatusUnauthorized, map[string]string{"error": "需要登录后访问"})
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"api_keys": h.cfg.APIKeys, "username": username})
 }
 
 // validCredentials 用常量时间比较校验凭据,两个字段都比较后再合并结果。

@@ -3,355 +3,544 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<link rel="icon" href="data:,">
-<title>模型目录 · CopilotGateway</title>
-<script src="https://cdn.tailwindcss.com"></script>
-<script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3/dist/cdn.min.js"></script>
+<link rel="icon" type="image/svg+xml" href="/web/assets/favicon.svg">
+<link rel="icon" type="image/png" sizes="32x32" href="/web/assets/favicon-32.png">
+<link rel="apple-touch-icon" href="/web/assets/apple-touch-icon.png">
+<title>CopilotGateway</title>
+<link rel="stylesheet" href="/web/assets/app.css">
+<script src="/web/assets/app.js"></script>
 </head>
-<body class="bg-gray-50 min-h-screen font-sans text-gray-900">
-<div x-data="modelsPage()" x-init="load(); loadConfig()" class="max-w-5xl mx-auto px-4 py-10">
-
-  <header class="flex items-end justify-between mb-6">
-    <div>
-      <h1 class="text-2xl font-semibold tracking-tight" x-text="t('title')"></h1>
-      <p class="text-sm text-gray-500 mt-1">
-        CopilotGateway · <span x-text="t('subtitle')"></span><span x-show="cachedAt"> · <span x-text="t('cached') + ' ' + fmtTime(cachedAt)"></span></span>
-      </p>
-    </div>
-    <div class="flex items-center gap-4">
-      <button @click="setLang(lang === 'zh' ? 'en' : 'zh')" aria-label="Switch language"
-        class="text-sm text-gray-500 hover:text-indigo-600 transition-colors"
-        x-text="lang === 'zh' ? 'EN' : '中文'"></button>
-      <button @click="logout()"
-        class="text-sm text-gray-500 hover:text-red-600 transition-colors" x-text="t('logout')"></button>
+<body>
+<div class="app">
+  <header class="topbar">
+    <a class="brand" href="/"><span class="brand-mark"><svg class="icon" aria-hidden="true"><use href="/web/assets/icons.svg#waypoints"></use></svg></span>CopilotGateway</a>
+    <div class="topbar-actions">
+      <span class="topbar-meta" id="models-aux"></span>
+      <a class="tool-btn" id="github" href="https://github.com/HeyJiqingCode/CopilotGateway" target="_blank" rel="noopener" aria-label="GitHub" title="GitHub"><svg class="icon" aria-hidden="true"><use href="/web/assets/icons.svg#github"></use></svg></a>
+      <button class="tool-btn" type="button" id="fetch"><svg class="icon" aria-hidden="true"><use id="fetch-icon" href="/web/assets/icons.svg#cloud-download"></use></svg></button>
+      <div class="user-menu">
+        <button class="tool-btn" type="button" id="user-btn" aria-haspopup="menu" aria-expanded="false" aria-controls="menu">
+          <svg class="icon" aria-hidden="true"><use href="/web/assets/icons.svg#circle-user-round"></use></svg>
+        </button>
+        <div class="menu" id="menu" role="menu" hidden>
+          <div class="menu-head"><svg class="icon" aria-hidden="true"><use href="/web/assets/icons.svg#circle-user-round"></use></svg><span class="menu-user" id="menu-user"></span></div>
+          <div class="menu-sep" role="separator"></div>
+          <button class="menu-item" type="button" role="menuitem" id="menu-lang"><svg class="icon" aria-hidden="true"><use href="/web/assets/icons.svg#languages"></use></svg><span data-t="language"></span><span class="menu-value" id="lang-value"></span></button>
+          <button class="menu-item danger" type="button" role="menuitem" id="menu-logout"><svg class="icon" aria-hidden="true"><use href="/web/assets/icons.svg#log-out"></use></svg><span data-t="logout"></span></button>
+        </div>
+      </div>
     </div>
   </header>
 
-  <template x-if="error">
-    <div class="bg-white border border-red-200 text-red-700 rounded-xl p-4 mb-6 text-sm break-words" x-text="error"></div>
-  </template>
-
-  <div x-show="apiKeys.length" x-cloak class="bg-white rounded-2xl border border-gray-200 px-5 py-4 mb-6">
-    <h2 class="text-xs font-medium text-gray-400 uppercase tracking-wide mb-3" x-text="t('access')"></h2>
-    <dl class="space-y-2 text-sm">
-      <div class="flex items-center justify-between gap-4">
-        <dt class="text-gray-500 shrink-0">Endpoint</dt>
-        <dd class="flex items-center gap-2 min-w-0">
-          <span class="font-mono text-gray-900 truncate" x-text="endpoint" :title="endpoint"></span>
-          <button @click="copy(endpoint, 'ep')" :aria-label="t('copyTip')" :title="copied === 'ep' ? t('copiedTip') : t('copyTip')"
-            class="shrink-0 p-1.5 rounded-lg text-gray-400 hover:text-indigo-600 hover:bg-gray-100 transition-colors">
-            <svg x-show="copied !== 'ep'" class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
-            <svg x-show="copied === 'ep'" x-cloak class="w-4 h-4 text-emerald-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
-          </button>
-        </dd>
+  <main class="content">
+    <section class="card">
+      <div class="card-head">
+        <div class="card-title"><h2><svg class="icon text-blue" aria-hidden="true"><use href="/web/assets/icons.svg#plug"></use></svg><span data-t="connection"></span></h2></div>
       </div>
-      <template x-for="(k, i) in apiKeys" :key="k">
-        <div class="flex items-center justify-between gap-4">
-          <dt class="text-gray-500 shrink-0">API Key</dt>
-          <dd class="flex items-center gap-2 min-w-0">
-            <span class="font-mono text-gray-900 truncate" x-text="mask(k)"></span>
-            <button @click="copy(k, 'key' + i)" :aria-label="t('copyTip')" :title="copied === 'key' + i ? t('copiedTip') : t('copyTip')"
-              class="shrink-0 p-1.5 rounded-lg text-gray-400 hover:text-indigo-600 hover:bg-gray-100 transition-colors">
-              <svg x-show="copied !== 'key' + i" class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
-              <svg x-show="copied === 'key' + i" x-cloak class="w-4 h-4 text-emerald-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
-            </button>
-          </dd>
+      <div class="connection" id="connection"></div>
+    </section>
+
+    <section class="card models-card">
+      <div class="card-head">
+        <div class="card-title">
+          <h2><svg class="icon text-purple" aria-hidden="true"><use href="/web/assets/icons.svg#boxes"></use></svg><span data-t="models"></span></h2>
         </div>
-      </template>
-    </dl>
-  </div>
-
-  <div x-show="all.length" x-cloak class="flex items-center justify-between mb-2 px-1">
-    <span class="text-xs text-gray-400"
-      x-text="showAll ? t('allCount', {n: all.length}) : t('curatedCount', {n: curated.length})"></span>
-    <button @click="showAll = !showAll"
-      class="text-xs text-gray-500 hover:text-indigo-600 transition-colors"
-      x-text="showAll ? t('showLatest') : t('showAll')"></button>
-  </div>
-
-  <div x-show="models.length" x-cloak
-    class="bg-white rounded-2xl border border-gray-200 divide-y divide-gray-100 overflow-hidden">
-    <template x-for="m in models" :key="m.id">
-      <div>
-        <button @click="toggle(m.id)"
-          class="w-full flex items-center gap-4 px-5 py-3.5 text-left hover:bg-gray-50 transition-colors">
-          <div class="flex-1 min-w-0">
-            <div class="flex items-center gap-2 flex-wrap">
-              <span class="font-medium" x-text="m.name || m.id"></span>
-              <span x-show="m.preview"
-                class="text-xs px-1.5 py-0.5 rounded-md bg-amber-50 text-amber-700">preview</span>
-              <span x-show="m.model_picker_enabled"
-                class="text-xs px-1.5 py-0.5 rounded-md bg-emerald-50 text-emerald-700">picker</span>
-              <span x-show="m.vendor" :class="vendorClass(m.vendor)"
-                class="text-xs px-1.5 py-0.5 rounded-md" x-text="m.vendor"></span>
-            </div>
-            <div class="flex items-center gap-3 flex-wrap mt-0.5 text-xs">
-              <span class="text-gray-500 font-mono break-words" x-text="m.id"></span>
-              <span class="text-gray-400"><span x-text="t('prices')"></span>
-                <span class="text-gray-700 font-medium" x-text="priceLine(m)"></span>
-              </span>
-            </div>
+        <div class="card-actions">
+          <div class="filter">
+            <button class="filter-pill" type="button" id="provider-btn" aria-haspopup="listbox" aria-expanded="false" aria-controls="provider-menu">
+              <span class="filter-label" data-t="provider"></span><span class="filter-value" id="provider-value"></span>
+              <svg class="icon" aria-hidden="true"><use href="/web/assets/icons.svg#chevron-down"></use></svg>
+            </button>
+            <div class="menu filter-menu" id="provider-menu" role="listbox" hidden></div>
           </div>
-          <div class="text-right text-xs text-gray-600 shrink-0 space-y-1">
-            <div><span x-text="t('context')"></span> <span class="font-medium text-gray-900" x-text="fmt(m.capabilities?.limits?.max_context_window_tokens)"></span></div>
-            <div class="flex justify-end gap-1 flex-wrap">
-              <template x-for="ep in endpoints(m)" :key="ep">
-                <span class="px-1.5 py-0.5 rounded-md" :class="epClass(ep)" x-text="ep"></span>
-              </template>
-              <span x-show="!(m.supported_endpoints || []).length" class="text-gray-400">—</span>
-            </div>
-          </div>
-        </button>
+        </div>
       </div>
-    </template>
-  </div>
-
-  <p x-show="!models.length && !error" class="text-sm text-gray-400 text-center py-16" x-text="t('loading')"></p>
-
-  <!-- 模型详情弹窗:点击行打开,遮罩/ESC/✕ 关闭 -->
-  <div x-show="openModel" x-cloak @keydown.escape.window="open = null"
-    class="fixed inset-0 z-50 flex items-center justify-center p-4">
-    <div class="absolute inset-0 bg-gray-900/40" @click="open = null"></div>
-    <div x-show="openModel" x-transition
-      class="relative bg-white rounded-2xl shadow-xl w-full max-w-xl p-6">
-      <template x-if="openModel">
-        <div>
-          <div class="flex items-start justify-between gap-4">
-            <div class="min-w-0">
-              <div class="flex items-center gap-2 flex-wrap">
-                <h2 class="text-lg font-semibold" x-text="openModel.name || openModel.id"></h2>
-                <span x-show="openModel.preview"
-                  class="text-xs px-1.5 py-0.5 rounded-md bg-amber-50 text-amber-700">preview</span>
-                <span x-show="openModel.vendor" :class="vendorClass(openModel.vendor)"
-                  class="text-xs px-1.5 py-0.5 rounded-md" x-text="openModel.vendor"></span>
-              </div>
-              <div class="text-xs text-gray-500 font-mono mt-0.5 break-words" x-text="openModel.id"></div>
-            </div>
-            <button @click="open = null" :aria-label="t('close')"
-              class="shrink-0 p-1.5 -m-1 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors">
-              <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg>
-            </button>
-          </div>
-          <dl class="mt-5 space-y-2 text-sm">
-            <template x-for="row in capabilityRows(openModel)" :key="row.label">
-              <div class="grid grid-cols-[9rem_1fr] gap-3">
-                <dt class="text-gray-500" x-text="row.label"></dt>
-                <dd class="text-gray-900 text-right break-words" x-text="row.value"></dd>
-              </div>
-            </template>
-          </dl>
+      <div class="models-body">
+        <div class="table-viewport scroll" id="table-viewport" hidden>
+          <table class="table">
+            <thead><tr id="table-head"></tr></thead>
+            <tbody id="table-body"></tbody>
+          </table>
         </div>
-      </template>
-    </div>
-  </div>
+        <div class="placeholder" id="placeholder">
+          <div class="placeholder-title" id="placeholder-title"></div>
+          <div class="placeholder-text" id="placeholder-text"></div>
+        </div>
+      </div>
+      <aside class="drawer" id="drawer" aria-labelledby="drawer-title" hidden>
+        <div class="drawer-head">
+          <div class="drawer-identity">
+            <span id="drawer-logo"></span>
+            <div>
+              <h3 class="drawer-title" id="drawer-title" tabindex="-1"></h3>
+              <div class="drawer-sub" id="drawer-sub"></div>
+            </div>
+          </div>
+          <button class="icon-btn" type="button" id="drawer-close"><svg class="icon" aria-hidden="true"><use href="/web/assets/icons.svg#x"></use></svg></button>
+        </div>
+        <div class="drawer-body scroll" id="drawer-body"></div>
+      </aside>
+    </section>
+  </main>
 </div>
 
 <script>
-// 页面文案字典:zh/en 两套,key 一一对应;{n}/{mb} 为插值占位符
 const I18N = {
   zh: {
-    docTitle: '模型目录 · CopilotGateway',
-    title: '模型目录',
-    subtitle: '当前可用的最新模型(数据来自上游 /models)',
-    cached: '缓存于',
-    logout: '退出登录',
-    access: '接入信息',
-    copyTip: '复制', copiedTip: '已复制',
-    curatedCount: '每系列最新,共 {n} 个',
-    allCount: '上游完整目录,共 {n} 个',
-    showAll: '显示全部', showLatest: '只看最新',
-    loading: '加载中…', loadFail: '加载失败',
-    context: '上下文',
-    prices: '输入/输出/缓存读/缓存写',
-    maxIO: '最大输入/输出',
-    tools: '工具调用', yes: '支持', parallel: '(可并行)',
-    structured: '结构化输出', streaming: '流式',
-    effort: 'Reasoning effort', budget: '思考预算',
-    vision: '视觉', imgCount: '最多 {n} 张', imgSize: '单张 ≤{mb}MB',
-    close: '关闭',
+    docTitle: '模型目录 · CopilotGateway', fetch: '拉取', account: '账户', language: '语言', langName: '中文', logout: '退出登录',
+    connection: '接入信息', models: '模型', provider: '模型厂商', allProviders: '全部',
+    copy: '复制', copied: '已复制 {name}', copyFail: '复制失败',
+    priceUnit: 'USD / 1M Tokens', aux: '{time} 更新',
+    loading: '正在读取模型目录…', loadFail: '模型目录读取失败', fetched: '已拉取最新模型目录', fetchFail: '拉取失败，显示的是上次读取的数据',
+    empty: '没有模型', emptyText: '上游目录里没有可显示的模型',
+    colModel: '模型', colVendor: '厂商', colContext: '上下文', colOutput: '最大输出',
+    colInput: '输入', colOutputPrice: '输出', colCacheRead: '缓存读取', colCacheWrite: '缓存写入', colEndpoints: '端点',
+    powerful: '强大', versatile: '全能', lightweight: '轻量', other: '其他', preview: '预览',
+    close: '关闭', limits: '限制', pricing: '单价', capabilities: '能力', endpoints: '端点',
+    contextWindow: '上下文窗口', maxPrompt: '最大输入', maxOutput: '最大输出', maxNonStreaming: '非流式最大输出',
+    input: '输入', output: '输出', cacheRead: '缓存读取', cacheWrite: '缓存写入', cacheWrite1h: '1 小时缓存写入',
+    tier: '上下文', shortContext: '短上下文', longContext: '长上下文', allContext: '全部',
+    toolCalls: '工具调用', structured: '结构化输出', streaming: '流式', vision: '视觉', effort: 'Reasoning effort', adaptive: '自适应思考',
+    supported: '支持', parallel: '支持 · 可并行',
   },
   en: {
-    docTitle: 'Model Catalog · CopilotGateway',
-    title: 'Model Catalog',
-    subtitle: 'latest available models (from upstream /models)',
-    cached: 'cached at',
-    logout: 'Sign out',
-    access: 'Connection',
-    copyTip: 'Copy', copiedTip: 'Copied',
-    curatedCount: 'Latest per series · {n} models',
-    allCount: 'Full upstream catalog · {n} models',
-    showAll: 'Show all', showLatest: 'Latest only',
-    loading: 'Loading…', loadFail: 'Failed to load',
-    context: 'Context',
-    prices: 'in/out/cache-read/cache-write',
-    maxIO: 'Max input/output',
-    tools: 'Tool calls', yes: 'Supported', parallel: ' (parallel)',
-    structured: 'Structured outputs', streaming: 'Streaming',
-    effort: 'Reasoning effort', budget: 'Thinking budget',
-    vision: 'Vision', imgCount: 'up to {n} images', imgSize: '≤{mb}MB each',
-    close: 'Close',
+    docTitle: 'Model Catalog · CopilotGateway', fetch: 'Fetch', account: 'Account', language: 'Language', langName: 'English', logout: 'Sign out',
+    connection: 'Connection', models: 'Models', provider: 'Model Provider', allProviders: 'All',
+    copy: 'Copy', copied: 'Copied {name}', copyFail: 'Copy failed',
+    priceUnit: 'USD / 1M tokens', aux: 'Updated {time}',
+    loading: 'Loading model catalog…', loadFail: 'Failed to load the model catalog', fetched: 'Fetched the latest model catalog', fetchFail: 'Fetch failed, showing the last loaded data',
+    empty: 'No models', emptyText: 'The upstream catalog has no models to show',
+    colModel: 'Model', colVendor: 'Provider', colContext: 'Context', colOutput: 'Max output',
+    colInput: 'Input', colOutputPrice: 'Output', colCacheRead: 'Cache read', colCacheWrite: 'Cache write', colEndpoints: 'Endpoints',
+    powerful: 'Powerful', versatile: 'Versatile', lightweight: 'Lightweight', other: 'Other', preview: 'Preview',
+    close: 'Close', limits: 'Limits', pricing: 'Unit prices', capabilities: 'Capabilities', endpoints: 'Endpoints',
+    contextWindow: 'Context window', maxPrompt: 'Max input', maxOutput: 'Max output', maxNonStreaming: 'Max output (non-streaming)',
+    input: 'Input', output: 'Output', cacheRead: 'Cache read', cacheWrite: 'Cache write', cacheWrite1h: 'Cache write 1h',
+    tier: 'Context', shortContext: 'Short context', longContext: 'Long context', allContext: 'All',
+    toolCalls: 'Tool calls', structured: 'Structured outputs', streaming: 'Streaming', vision: 'Vision', effort: 'Reasoning effort', adaptive: 'Adaptive thinking',
+    supported: 'Supported', parallel: 'Supported · parallel',
   },
 };
 
-function modelsPage() {
-  return {
-    all: [], curated: [], showAll: false, cachedAt: null, error: '', open: null,
-    endpoint: location.origin, apiKeys: [], copied: '',
-    // 语言:localStorage 记忆,首次跟随浏览器
-    lang: localStorage.getItem('cgw_lang') || (navigator.language.startsWith('zh') ? 'zh' : 'en'),
+const CATEGORIES = ['powerful', 'versatile', 'lightweight'];
+const ENDPOINTS = {
+  '/v1/messages': { label: 'Messages', tone: 'tone-amber' },
+  '/chat/completions': { label: 'Chat', tone: 'tone-blue' },
+  '/responses': { label: 'Responses', tone: 'tone-teal' },
+  'ws:/responses': { label: 'WebSocket', tone: 'tone-purple' },
+};
 
-    t(key, vars) {
-      let s = (I18N[this.lang] || I18N.zh)[key] || key;
-      if (vars) for (const [k, v] of Object.entries(vars)) s = s.replaceAll('{' + k + '}', v);
-      return s;
-    },
-    setLang(l) {
-      this.lang = l;
-      localStorage.setItem('cgw_lang', l);
-      document.title = this.t('docTitle');
-    },
-    fmtTime(ts) { return new Date(ts).toLocaleString(this.lang === 'zh' ? 'zh-CN' : 'en-US'); },
+// Vendor logos from @lobehub/icons-static-svg v1.95.1 (https://github.com/lobehub/lobe-icons), MIT License, Copyright (c) LobeHub.
+const VENDOR_LOGOS = {
+  "Anthropic": {
+    "attrs": "fill=\"currentColor\" fill-rule=\"evenodd\"",
+    "body": "<path d=\"M13.827 3.52h3.603L24 20h-3.603l-6.57-16.48zm-7.258 0h3.767L16.906 20h-3.674l-1.343-3.461H5.017l-1.344 3.46H0L6.57 3.522zm4.132 9.959L8.453 7.687 6.205 13.48H10.7z\"></path>"
+  },
+  "OpenAI": {
+    "attrs": "fill=\"currentColor\" fill-rule=\"evenodd\"",
+    "body": "<path d=\"M9.205 8.658v-2.26c0-.19.072-.333.238-.428l4.543-2.616c.619-.357 1.356-.523 2.117-.523 2.854 0 4.662 2.212 4.662 4.566 0 .167 0 .357-.024.547l-4.71-2.759a.797.797 0 00-.856 0l-5.97 3.473zm10.609 8.8V12.06c0-.333-.143-.57-.429-.737l-5.97-3.473 1.95-1.118a.433.433 0 01.476 0l4.543 2.617c1.309.76 2.189 2.378 2.189 3.948 0 1.808-1.07 3.473-2.76 4.163zM7.802 12.703l-1.95-1.142c-.167-.095-.239-.238-.239-.428V5.899c0-2.545 1.95-4.472 4.591-4.472 1 0 1.927.333 2.712.928L8.23 5.067c-.285.166-.428.404-.428.737v6.898zM12 15.128l-2.795-1.57v-3.33L12 8.658l2.795 1.57v3.33L12 15.128zm1.796 7.23c-1 0-1.927-.332-2.712-.927l4.686-2.712c.285-.166.428-.404.428-.737v-6.898l1.974 1.142c.167.095.238.238.238.428v5.233c0 2.545-1.974 4.472-4.614 4.472zm-5.637-5.303l-4.544-2.617c-1.308-.761-2.188-2.378-2.188-3.948A4.482 4.482 0 014.21 6.327v5.423c0 .333.143.571.428.738l5.947 3.449-1.95 1.118a.432.432 0 01-.476 0zm-.262 3.9c-2.688 0-4.662-2.021-4.662-4.519 0-.19.024-.38.047-.57l4.686 2.71c.286.167.571.167.856 0l5.97-3.448v2.26c0 .19-.07.333-.237.428l-4.543 2.616c-.619.357-1.356.523-2.117.523zm5.899 2.83a5.947 5.947 0 005.827-4.756C22.287 18.339 24 15.84 24 13.296c0-1.665-.713-3.282-1.998-4.448.119-.5.19-.999.19-1.498 0-3.401-2.759-5.947-5.946-5.947-.642 0-1.26.095-1.88.31A5.962 5.962 0 0010.205 0a5.947 5.947 0 00-5.827 4.757C1.713 5.447 0 7.945 0 10.49c0 1.666.713 3.283 1.998 4.448-.119.5-.19 1-.19 1.499 0 3.401 2.759 5.946 5.946 5.946.642 0 1.26-.095 1.88-.309a5.96 5.96 0 004.162 1.713z\"></path>"
+  },
+  "Google": {
+    "attrs": "",
+    "body": "<path d=\"M23 12.245c0-.905-.075-1.565-.236-2.25h-10.54v4.083h6.186c-.124 1.014-.797 2.542-2.294 3.569l-.021.136 3.332 2.53.23.022C21.779 18.417 23 15.593 23 12.245z\" fill=\"#4285F4\"></path><path d=\"M12.225 23c3.03 0 5.574-.978 7.433-2.665l-3.542-2.688c-.948.648-2.22 1.1-3.891 1.1a6.745 6.745 0 01-6.386-4.572l-.132.011-3.465 2.628-.045.124C4.043 20.531 7.835 23 12.225 23z\" fill=\"#34A853\"></path><path d=\"M5.84 14.175A6.65 6.65 0 015.463 12c0-.758.138-1.491.361-2.175l-.006-.147-3.508-2.67-.115.054A10.831 10.831 0 001 12c0 1.772.436 3.447 1.197 4.938l3.642-2.763z\" fill=\"#FBBC05\"></path><path d=\"M12.225 5.253c2.108 0 3.529.892 4.34 1.638l3.167-3.031C17.787 2.088 15.255 1 12.225 1 7.834 1 4.043 3.469 2.197 7.062l3.63 2.763a6.77 6.77 0 016.398-4.572z\" fill=\"#EB4335\"></path>"
+  },
+  "Microsoft": {
+    "attrs": "",
+    "body": "<path d=\"M11.49 2H2v9.492h9.492V2h-.002z\" fill=\"#F25022\"></path><path d=\"M22 2h-9.492v9.492H22V2z\" fill=\"#7FBA00\"></path><path d=\"M11.49 12.508H2V22h9.492v-9.492h-.002z\" fill=\"#00A4EF\"></path><path d=\"M22 12.508h-9.492V22H22v-9.492z\" fill=\"#FFB900\"></path>"
+  },
+  "Azure OpenAI": {
+    "attrs": "",
+    "body": "<path d=\"M7.242 1.613A1.11 1.11 0 018.295.857h6.977L8.03 22.316a1.11 1.11 0 01-1.052.755h-5.43a1.11 1.11 0 01-1.053-1.466L7.242 1.613z\" fill=\"url(#lobe-icons-azure-0-_R_0_)\"></path><path d=\"M18.397 15.296H7.4a.51.51 0 00-.347.882l7.066 6.595c.206.192.477.298.758.298h6.226l-2.706-7.775z\" fill=\"#0078D4\"></path><path d=\"M15.272.857H7.497L0 23.071h7.775l1.596-4.73 5.068 4.73h6.665l-2.707-7.775h-7.998L15.272.857z\" fill=\"url(#lobe-icons-azure-1-_R_0_)\"></path><path d=\"M17.193 1.613a1.11 1.11 0 00-1.052-.756h-7.81.035c.477 0 .9.304 1.052.756l6.748 19.992a1.11 1.11 0 01-1.052 1.466h-.12 7.895a1.11 1.11 0 001.052-1.466L17.193 1.613z\" fill=\"url(#lobe-icons-azure-2-_R_0_)\"></path><defs><linearGradient gradientUnits=\"userSpaceOnUse\" id=\"lobe-icons-azure-0-_R_0_\" x1=\"8.247\" x2=\"1.002\" y1=\"1.626\" y2=\"23.03\"><stop stop-color=\"#114A8B\"></stop><stop offset=\"1\" stop-color=\"#0669BC\"></stop></linearGradient><linearGradient gradientUnits=\"userSpaceOnUse\" id=\"lobe-icons-azure-1-_R_0_\" x1=\"14.042\" x2=\"12.324\" y1=\"15.302\" y2=\"15.888\"><stop stop-opacity=\".3\"></stop><stop offset=\".071\" stop-opacity=\".2\"></stop><stop offset=\".321\" stop-opacity=\".1\"></stop><stop offset=\".623\" stop-opacity=\".05\"></stop><stop offset=\"1\" stop-opacity=\"0\"></stop></linearGradient><linearGradient gradientUnits=\"userSpaceOnUse\" id=\"lobe-icons-azure-2-_R_0_\" x1=\"12.841\" x2=\"20.793\" y1=\"1.626\" y2=\"22.814\"><stop stop-color=\"#3CCBF4\"></stop><stop offset=\"1\" stop-color=\"#2892DF\"></stop></linearGradient></defs>"
+  },
+  "Fireworks": {
+    "attrs": "",
+    "body": "<path clip-rule=\"evenodd\" d=\"M14.8 5l-2.801 6.795L9.195 5H7.397l3.072 7.428a1.64 1.64 0 003.038.002L16.598 5H14.8zm1.196 10.352l5.124-5.244-.699-1.669-5.596 5.739a1.664 1.664 0 00-.343 1.807 1.642 1.642 0 001.516 1.012L16 17l8-.02-.699-1.669-7.303.041h-.002zM2.88 10.104l.699-1.669 5.596 5.739c.468.479.603 1.189.343 1.807a1.643 1.643 0 01-1.516 1.012l-8-.018-.002.002.699-1.669 7.303.042-5.122-5.246z\" fill=\"#5019C5\" fill-rule=\"evenodd\"></path>"
+  }
+};
 
-    // 展示列表:默认精选视图(每系列最新),可切换为上游完整目录
-    get models() { return this.showAll ? this.all : this.curated; },
-    // 弹窗当前展示的模型(open 存 id)
-    get openModel() { return this.open ? this.all.find(m => m.id === this.open) || null : null; },
+const state = {
+  lang: CGW.getLang(), provider: '', models: [], cachedAt: null, loaded: false, loadError: '',
+  apiKeys: [], username: '', openId: null,
+};
+const $ = id => document.getElementById(id);
+const { esc, icon } = CGW;
 
-    // 接入信息独立加载,失败只在控制台告警,不阻塞模型列表
-    async loadConfig() {
-      document.title = this.t('docTitle');
-      try {
-        const resp = await fetch('/web/api/config');
-        if (resp.ok) {
-          const body = await resp.json();
-          this.apiKeys = body.api_keys || [];
-        }
-      } catch (e) { console.warn('config load failed:', e); }
-    },
-
-    mask(k) { return k.length > 14 ? k.slice(0, 10) + '…' + k.slice(-4) : k; },
-
-    async copy(text, tag) {
-      try {
-        await navigator.clipboard.writeText(text);
-        this.copied = tag;
-        setTimeout(() => { if (this.copied === tag) this.copied = ''; }, 1500);
-      } catch (e) { console.warn('copy failed:', e); }
-    },
-
-    async load() {
-      try {
-        const resp = await fetch('/web/api/models');
-        if (resp.status === 401) { location.href = '/login'; return; }
-        if (!resp.ok) {
-          const body = await resp.json().catch(() => ({}));
-          this.error = body.error || (this.t('loadFail') + ': HTTP ' + resp.status);
-          return;
-        }
-        const body = await resp.json();
-        // 只展示当前代际的聊天模型(picker 启用),隐藏上游目录里的历史遗留条目
-        const list = (body.data || []).filter(m => m.model_picker_enabled && m.capabilities?.type === 'chat');
-        // 系列划分:Claude 按 opus/sonnet/haiku/fable 子系列;Gemini 按 Pro/Flash;
-        // 其余品牌取 id 第一段(gpt/kimi/…)。每个系列保留「最新一代的全部型号」:
-        // 只比版本号数字,取最高的一代,该代型号(含 preview/fast 等变体)全部显示。
-        const seriesOf = id => {
-          const c = /^claude-([a-z]+)/.exec(id);
-          if (c) return 'claude-' + c[1];
-          const g = /^gemini.*-(pro|flash)\b/.exec(id);
-          if (g) return 'gemini-' + g[1];
-          return id.split('-')[0];
-        };
-        const verOf = id => { const t = /(\d+(?:\.\d+)?)/.exec(id); return t ? parseFloat(t[1]) : 0; };
-        const groups = new Map();
-        for (const m of list) {
-          const key = seriesOf(m.id);
-          if (!groups.has(key)) groups.set(key, []);
-          groups.get(key).push(m);
-        }
-        const kept = [];
-        for (const arr of groups.values()) {
-          const maxVer = Math.max(...arr.map(m => verOf(m.id)));
-          kept.push(...arr.filter(m => verOf(m.id) === maxVer));
-        }
-        // 排序:厂商字母序分组,组内按输入价格降序(旗舰→轻量),同价按 id 字母序
-        const priceOf = m => m.billing?.token_prices?.default?.input_price ?? 0;
-        const sortModels = arr => [...arr].sort((a, b) =>
-          (a.vendor || '').localeCompare(b.vendor || '') ||
-          (priceOf(b) - priceOf(a)) ||
-          a.id.localeCompare(b.id));
-        this.all = sortModels(body.data || []);
-        this.curated = sortModels(kept);
-        this.cachedAt = body.cached_at;
-      } catch (e) {
-        this.error = this.t('loadFail') + ': ' + e;
-      }
-    },
-
-    toggle(id) { this.open = this.open === id ? null : id; },
-    async logout() { await fetch('/auth/logout', { method: 'POST' }); location.href = '/login'; },
-
-    fmt(n) { return n == null ? '—' : Number(n).toLocaleString(); },
-    // 上游价格单位是「美分/每 1M token」,除以 100 得美元
-    price(v) { return v == null ? '—' : '$' + (v / 100).toFixed(2); },
-
-    vendorClass(v) {
-      const map = {
-        'Anthropic': 'bg-orange-50 text-orange-700',
-        'OpenAI': 'bg-emerald-50 text-emerald-700',
-        'Azure OpenAI': 'bg-blue-50 text-blue-700',
-      };
-      return map[v] || 'bg-purple-50 text-purple-700';
-    },
-
-    // 端点固定排序:不同模型展示顺序一致,未知端点按字母序垫底
-    endpoints(m) {
-      const order = ['/v1/messages', '/chat/completions', '/responses', 'ws:/responses'];
-      const rank = ep => { const i = order.indexOf(ep); return i < 0 ? order.length : i; };
-      return [...(m.supported_endpoints || [])].sort((a, b) => rank(a) - rank(b) || a.localeCompare(b));
-    },
-
-    // 端点分色:各 API 形态一眼可辨,未知端点灰色兜底
-    epClass(ep) {
-      const map = {
-        '/v1/messages': 'bg-orange-50 text-orange-700',
-        '/chat/completions': 'bg-blue-50 text-blue-700',
-        '/responses': 'bg-emerald-50 text-emerald-700',
-        'ws:/responses': 'bg-purple-50 text-purple-700',
-      };
-      return map[ep] || 'bg-gray-100 text-gray-600';
-    },
-
-    capabilityRows(m) {
-      const s = m.capabilities?.supports || {};
-      const lim = m.capabilities?.limits || {};
-      const rows = [
-        { label: this.t('maxIO'), value: this.fmt(lim.max_prompt_tokens) + ' / ' + this.fmt(lim.max_output_tokens) },
-        { label: this.t('tools'), value: s.tool_calls ? this.t('yes') + (s.parallel_tool_calls ? this.t('parallel') : '') : '—' },
-        { label: this.t('structured'), value: s.structured_outputs ? this.t('yes') : '—' },
-        { label: this.t('streaming'), value: s.streaming ? this.t('yes') : '—' },
-        { label: this.t('effort'), value: (s.reasoning_effort || []).join(' / ') || '—' },
-      ];
-      if (s.adaptive_thinking) {
-        rows.push({ label: this.t('budget'), value: this.fmt(s.min_thinking_budget) + ' – ' + this.fmt(s.max_thinking_budget) });
-      }
-      if (s.vision) {
-        const v = lim.vision || {};
-        const mb = v.max_prompt_image_size ? this.t('imgSize', {mb: (v.max_prompt_image_size / 1048576).toFixed(0)}) : null;
-        const types = (v.supported_media_types || []).map(t => t.split('/')[1]).join('/');
-        rows.push({ label: this.t('vision'), value: [this.t('imgCount', {n: this.fmt(v.max_prompt_images)}), mb, types || null].filter(Boolean).join(' · ') });
-      }
-      return rows;
-    },
-
-    // 标题下的价格行:输入/输出/缓存读/缓存写,单位美元每 1M token
-    priceLine(m) {
-      const p = m.billing?.token_prices?.default || {};
-      return [p.input_price, p.output_price, p.cache_price, p.cache_write_price]
-        .map(v => this.price(v)).join(' / ');
-    },
-  };
+function t(key, vars) {
+  let s = I18N[state.lang][key] ?? key;
+  for (const [k, v] of Object.entries(vars || {})) s = s.replaceAll(`{${k}}`, v);
+  return s;
 }
+
+const LOGO_IDS = {};
+(() => {
+  const symbols = Object.entries(VENDOR_LOGOS).map(([vendor, logo], i) => {
+    LOGO_IDS[vendor] = `vendor-logo-${i}`;
+    return `<symbol id="vendor-logo-${i}" viewBox="0 0 24 24" ${logo.attrs}>${logo.body}</symbol>`;
+  }).join('');
+  document.body.insertAdjacentHTML('afterbegin', `<svg width="0" height="0" style="position:absolute" aria-hidden="true">${symbols}</svg>`);
+})();
+
+// Known vendors show their logo; any other vendor falls back to its initial.
+function vendorLogo(vendor, size = '') {
+  const id = LOGO_IDS[vendor];
+  const inner = id ? `<svg aria-hidden="true"><use href="#${id}"></use></svg>` : esc((vendor || '?').slice(0, 1).toUpperCase());
+  return `<span class="vendor-logo ${size}" title="${esc(vendor || '')}">${inner}</span>`;
+}
+
+// ---------- formatting ----------
+const dash = '<span class="muted">—</span>';
+
+function trimFixed(n, digits) { return String(Number(n.toFixed(digits))); }
+
+function tokens(n) {
+  if (n == null) return dash;
+  if (n >= 1e6) return `${trimFixed(n / 1e6, 2)} M`;
+  if (n >= 1e3) return `${trimFixed(n / 1e3, 1)} K`;
+  return Number(n).toLocaleString('en-US');
+}
+
+// Upstream prices are US cents per 1M tokens; unit prices keep up to 4 decimals.
+function price(cents) {
+  if (cents == null) return dash;
+  return '$' + (cents / 100).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 4 });
+}
+
+function fmtTime(ts) {
+  const d = new Date(ts);
+  const p = n => String(n).padStart(2, '0');
+  return `${p(d.getMonth() + 1)}/${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`;
+}
+
+function endpointTag(ep, full) {
+  const info = ENDPOINTS[ep] || { label: ep, tone: 'tone-slate' };
+  return `<span class="tag ${info.tone}">${esc(full ? ep : info.label)}</span>`;
+}
+
+// ---------- data ----------
+const pricesOf = m => m.billing?.token_prices?.default || {};
+
+// Only models with at least one endpoint are listed.
+function callableModels() {
+  return state.models.filter(m => (m.supported_endpoints || []).length);
+}
+
+function visibleModels() {
+  const list = callableModels();
+  return state.provider ? list.filter(m => m.vendor === state.provider) : list;
+}
+
+// Providers in the catalog, most models first.
+function providerOptions() {
+  const counts = new Map();
+  for (const m of callableModels()) if (m.vendor) counts.set(m.vendor, (counts.get(m.vendor) || 0) + 1);
+  return [...counts].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));
+}
+
+function groupedModels() {
+  const groups = new Map([...CATEGORIES, 'other'].map(c => [c, []]));
+  for (const m of visibleModels()) {
+    groups.get(CATEGORIES.includes(m.model_picker_category) ? m.model_picker_category : 'other').push(m);
+  }
+  const inputPrice = m => pricesOf(m).input_price ?? -1;
+  for (const list of groups.values()) {
+    list.sort((a, b) => (a.vendor || '').localeCompare(b.vendor || '') || inputPrice(b) - inputPrice(a) || a.id.localeCompare(b.id));
+  }
+  return [...groups].filter(([, list]) => list.length);
+}
+
+// ---------- rendering ----------
+function renderStatic() {
+  CGW.setLang(state.lang);
+  document.title = t('docTitle');
+  document.querySelectorAll('[data-t]').forEach(el => { el.textContent = t(el.dataset.t); });
+  $('lang-value').textContent = t('langName');
+  for (const [id, key] of [['fetch', 'fetch'], ['user-btn', 'account']]) {
+    $(id).setAttribute('aria-label', t(key));
+    $(id).title = t(key);
+  }
+  $('provider-value').textContent = state.provider || t('allProviders');
+  $('provider-btn').classList.toggle('is-active', Boolean(state.provider));
+  $('drawer-close').setAttribute('aria-label', t('close'));
+  $('drawer-close').title = t('close');
+  $('models-aux').textContent = state.cachedAt ? t('aux', { time: fmtTime(state.cachedAt) }) : '';
+}
+
+// URLs keep their start and end when space runs out, e.g. https://copilotg…containerapps.io/v1
+function connItem(kind, label, value, shown) {
+  const text = kind === 'is-url'
+    ? `<span class="trunc-head">${esc(shown.slice(0, -18))}</span><span class="trunc-tail">${esc(shown.slice(-18))}</span>`
+    : esc(shown);
+  return `<div class="conn-item ${kind}"><span class="conn-label">${esc(label)}</span>
+    <span class="conn-value" title="${esc(shown)}">${text}</span>
+    <button class="icon-btn" type="button" data-copy="${esc(value)}" data-name="${esc(label)}" aria-label="${esc(t('copy'))} ${esc(label)}" title="${esc(t('copy'))}">${icon('copy')}</button></div>`;
+}
+
+function mask(key) { return key.length > 14 ? `${key.slice(0, 10)}…${key.slice(-4)}` : key; }
+
+function renderConnection() {
+  const origin = location.origin;
+  const items = [
+    connItem('is-url', 'Anthropic Base URL', origin, origin),
+    connItem('is-url', 'OpenAI Base URL', origin + '/v1', origin + '/v1'),
+    ...state.apiKeys.map((k, i) => connItem('is-key', state.apiKeys.length > 1 ? `API Key ${i + 1}` : 'API Key', k, mask(k))),
+  ];
+  $('connection').innerHTML = items.join('<span class="conn-sep"></span>');
+}
+
+function renderProviderMenu() {
+  const options = [['', t('allProviders'), callableModels().length], ...providerOptions().map(([v, n]) => [v, v, n])];
+  $('provider-menu').innerHTML = options.map(([value, label, n]) =>
+    `<button class="menu-item" type="button" role="option" data-provider="${esc(value)}" aria-selected="${value === state.provider}">
+      ${value ? vendorLogo(value, 'is-small') : ''}<span>${esc(label)}</span><span class="menu-count">${n}</span></button>`).join('');
+}
+
+function setProviderMenu(open) {
+  if (open) renderProviderMenu();
+  $('provider-menu').hidden = !open;
+  $('provider-btn').setAttribute('aria-expanded', String(open));
+}
+
+function renderUser() {
+  $('menu-user').textContent = state.username;
+}
+
+function renderTable() {
+  const showTable = state.loaded && !state.loadError && visibleModels().length > 0;
+  $('table-viewport').hidden = !showTable;
+  $('placeholder').hidden = showTable;
+  if (!showTable) {
+    const [title, text] = !state.loaded ? [t('loading'), '']
+      : state.loadError ? [t('loadFail'), state.loadError]
+      : [t('empty'), t('emptyText')];
+    $('placeholder-title').textContent = title;
+    $('placeholder-text').textContent = text;
+    return;
+  }
+
+  const head = [['colModel', ''], ['colVendor', ''], ['colContext', 'num'], ['colOutput', 'num'], ['colInput', 'num'],
+    ['colOutputPrice', 'num'], ['colCacheRead', 'num'], ['colCacheWrite', 'num'], ['colEndpoints', '']];
+  $('table-head').innerHTML = head.map(([k, cls]) => `<th class="${cls}">${esc(t(k))}</th>`).join('');
+
+  $('table-body').innerHTML = groupedModels().map(([cat, list]) => {
+    const rows = list.map(m => {
+      const p = pricesOf(m);
+      const lim = m.capabilities?.limits || {};
+      const eps = (m.supported_endpoints || []).slice().sort((a, b) => Object.keys(ENDPOINTS).indexOf(a) - Object.keys(ENDPOINTS).indexOf(b));
+      return `<tr class="model-row${m.id === state.openId ? ' is-selected' : ''}" data-id="${esc(m.id)}" tabindex="0">
+        <td><div class="model-cell">${vendorLogo(m.vendor)}<div>
+          <div class="model-name">${esc(m.name || m.id)}${m.preview ? `<span class="tag tone-amber">${esc(t('preview'))}</span>` : ''}</div>
+          <div class="model-id">${esc(m.id)}</div></div></div></td>
+        <td>${m.vendor ? esc(m.vendor) : dash}</td>
+        <td class="num">${tokens(lim.max_context_window_tokens)}</td>
+        <td class="num">${tokens(lim.max_output_tokens)}</td>
+        <td class="num">${price(p.input_price)}</td>
+        <td class="num">${price(p.output_price)}</td>
+        <td class="num">${price(p.cache_price)}</td>
+        <td class="num">${price(p.cache_write_price)}</td>
+        <td><div class="endpoints">${eps.length ? eps.map(ep => endpointTag(ep, false)).join('') : dash}</div></td>
+      </tr>`;
+    }).join('');
+    return `<tr class="group-row"><td colspan="9">${esc(t(cat))}<span class="count">${list.length}</span></td></tr>${rows}`;
+  }).join('');
+}
+
+function row(label, value) { return `<div><dt>${esc(label)}</dt><dd>${value}</dd></div>`; }
+
+function section(iconName, tone, title, rows, aux) {
+  return `<section class="section"><h4 class="section-title">${icon(iconName, tone)}${esc(title)}${aux ? `<span class="card-aux">${esc(aux)}</span>` : ''}</h4><dl class="rows">${rows}</dl></section>`;
+}
+
+const PRICE_ITEMS = [['input', 'input_price'], ['output', 'output_price'], ['cacheRead', 'cache_price'],
+  ['cacheWrite', 'cache_write_price'], ['cacheWrite1h', 'cache_write_1h_price']];
+
+// Rows are context tiers. A long-context tier priced like the default one
+// collapses into a single row covering the whole window.
+function priceMatrix(m) {
+  const tiers = m.billing?.token_prices || {};
+  const short = tiers.default;
+  if (!short) return `<dl class="rows">${row(t('pricing'), dash)}</dl>`;
+  const long = tiers.long_context;
+  const same = long && PRICE_ITEMS.every(([, k]) => long[k] === short[k]);
+  const rows = !long ? [[t('allContext'), short.context_max ? `≤ ${tokens(short.context_max)}` : '', short]]
+    : same ? [[t('allContext'), `≤ ${tokens(long.context_max)}`, short]]
+    : [[t('shortContext'), `≤ ${tokens(short.context_max)}`, short], [t('longContext'), `> ${tokens(short.context_max)}`, long]];
+  const items = PRICE_ITEMS.filter(([, k]) => rows.some(([, , tier]) => tier[k] != null));
+  return `<table class="price-matrix"><thead><tr><th>${esc(t('tier'))}</th>${items.map(([label]) => `<th>${esc(t(label))}</th>`).join('')}</tr></thead>
+    <tbody>${rows.map(([name, range, tier]) => `<tr><td>${esc(name)}${range ? `<span class="tier-range">${esc(range)}</span>` : ''}</td>${items.map(([, k]) => `<td>${price(tier[k])}</td>`).join('')}</tr>`).join('')}</tbody></table>`;
+}
+
+function renderDrawer() {
+  const m = state.openId ? state.models.find(x => x.id === state.openId) : null;
+  $('drawer').hidden = !m;
+  if (!m) return;
+  const lim = m.capabilities?.limits || {};
+  const s = m.capabilities?.supports || {};
+  const yes = (on, text = t('supported')) => (on ? esc(text) : dash);
+
+  $('drawer-logo').innerHTML = vendorLogo(m.vendor, 'is-large');
+  $('drawer-title').textContent = m.name || m.id;
+  $('drawer-sub').innerHTML = `<span class="model-id">${esc(m.id)}</span>`
+    + (m.vendor ? `<span class="tag tone-slate">${esc(m.vendor)}</span>` : '')
+    + (CATEGORIES.includes(m.model_picker_category) ? `<span class="tag tone-purple">${esc(t(m.model_picker_category))}</span>` : '')
+    + (m.preview ? `<span class="tag tone-amber">${esc(t('preview'))}</span>` : '');
+
+  const media = (lim.vision?.supported_media_types || []).map(x => x.split('/')[1].toUpperCase()).join(' / ');
+  const eps = m.supported_endpoints || [];
+
+  $('drawer-body').innerHTML = [
+    section('gauge', 'text-blue', t('limits'), [
+      row(t('contextWindow'), tokens(lim.max_context_window_tokens)),
+      row(t('maxPrompt'), tokens(lim.max_prompt_tokens)),
+      row(t('maxOutput'), tokens(lim.max_output_tokens)),
+      row(t('maxNonStreaming'), tokens(lim.max_non_streaming_output_tokens)),
+    ].join('')),
+    `<section class="section"><h4 class="section-title">${icon('wallet', 'text-amber')}${esc(t('pricing'))}<span class="card-aux">${esc(t('priceUnit'))}</span></h4>${priceMatrix(m)}</section>`,
+    section('sparkles', 'text-purple', t('capabilities'), [
+      row(t('toolCalls'), yes(s.tool_calls, s.parallel_tool_calls ? t('parallel') : t('supported'))),
+      row(t('structured'), yes(s.structured_outputs)),
+      row(t('streaming'), yes(s.streaming)),
+      row(t('vision'), yes(s.vision, media ? `${t('supported')} · ${media}` : t('supported'))),
+      row(t('effort'), (s.reasoning_effort || []).length ? esc(s.reasoning_effort.join(' / ')) : dash),
+      row(t('adaptive'), yes(s.adaptive_thinking)),
+    ].join('')),
+    section('route', 'text-teal', t('endpoints'), row(t('endpoints'), eps.length ? eps.map(ep => endpointTag(ep, true)).join('') : dash)),
+  ].join('');
+}
+
+function render() { renderStatic(); renderConnection(); renderUser(); renderTable(); renderDrawer(); }
+
+// ---------- behaviour ----------
+let lastRow = null;
+
+function openModel(id, rowEl) {
+  if (state.openId === id) { closeDrawer(); return; }
+  state.openId = id;
+  lastRow = rowEl;
+  renderTable();
+  renderDrawer();
+  $('drawer-body').scrollTop = 0;
+  $('drawer-title').focus();
+}
+
+function closeDrawer() {
+  if (!state.openId) return;
+  const id = state.openId;
+  state.openId = null;
+  renderTable();
+  renderDrawer();
+  const rowEl = document.querySelector(`.model-row[data-id="${CSS.escape(id)}"]`) || lastRow;
+  rowEl?.focus();
+}
+
+function setMenu(open) {
+  $('menu').hidden = !open;
+  $('user-btn').setAttribute('aria-expanded', String(open));
+}
+
+async function fetchJSON(url, init) {
+  const resp = await fetch(url, init);
+  if (resp.status === 401) { location.href = '/login'; throw new Error('unauthenticated'); }
+  const body = await resp.json().catch(() => ({}));
+  if (!resp.ok) throw new Error(body.error || resp.statusText);
+  return body;
+}
+
+async function loadConfig() {
+  try {
+    const body = await fetchJSON('/web/api/config');
+    state.apiKeys = body.api_keys || [];
+    state.username = body.username || '';
+    renderConnection();
+    renderUser();
+  } catch (e) { console.warn('config load failed:', e); }
+}
+
+async function loadModels(fromUpstream = false) {
+  const btn = $('fetch');
+  const glyph = $('fetch-icon');
+  btn.disabled = true;
+  glyph.setAttribute('href', '/web/assets/icons.svg#loader-circle');
+  glyph.parentElement.classList.add('spin');
+  try {
+    const body = await fetchJSON(fromUpstream ? '/web/api/models/refresh' : '/web/api/models', fromUpstream ? { method: 'POST' } : undefined);
+    state.models = body.data || [];
+    state.cachedAt = body.cached_at;
+    state.loadError = '';
+    if (fromUpstream) CGW.toast(t('fetched'));
+  } catch (e) {
+    if (state.loaded && !state.loadError) CGW.toast(t('fetchFail'), 'error');
+    else state.loadError = e.message;
+  } finally {
+    state.loaded = true;
+    btn.disabled = false;
+    glyph.setAttribute('href', '/web/assets/icons.svg#cloud-download');
+    glyph.parentElement.classList.remove('spin');
+    if (state.provider && !providerOptions().some(([v]) => v === state.provider)) state.provider = '';
+    if (state.openId && !state.models.some(m => m.id === state.openId)) state.openId = null;
+    renderStatic();
+    renderTable();
+    renderDrawer();
+  }
+}
+
+$('fetch').addEventListener('click', () => loadModels(true));
+$('drawer-close').addEventListener('click', closeDrawer);
+
+$('provider-btn').addEventListener('click', () => setProviderMenu($('provider-menu').hidden));
+$('provider-menu').addEventListener('click', e => {
+  const opt = e.target.closest('[data-provider]');
+  if (!opt) return;
+  state.provider = opt.dataset.provider;
+  setProviderMenu(false);
+  if (state.openId && !visibleModels().some(m => m.id === state.openId)) state.openId = null;
+  renderStatic();
+  renderTable();
+  renderDrawer();
+});
+
+$('table-body').addEventListener('click', e => {
+  const rowEl = e.target.closest('.model-row');
+  if (rowEl) openModel(rowEl.dataset.id, rowEl);
+});
+$('table-body').addEventListener('keydown', e => {
+  const rowEl = e.target.closest('.model-row');
+  if (rowEl && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); openModel(rowEl.dataset.id, rowEl); }
+});
+
+document.addEventListener('click', async e => {
+  const copyBtn = e.target.closest('[data-copy]');
+  if (copyBtn) {
+    try {
+      await navigator.clipboard.writeText(copyBtn.dataset.copy);
+      CGW.toast(t('copied', { name: copyBtn.dataset.name }));
+    } catch { CGW.toast(t('copyFail'), 'error'); }
+    return;
+  }
+  if (!e.target.closest('.user-menu')) setMenu(false);
+  if (!e.target.closest('.filter')) setProviderMenu(false);
+});
+
+$('user-btn').addEventListener('click', () => setMenu($('menu').hidden));
+$('menu-lang').addEventListener('click', () => {
+  state.lang = state.lang === 'zh' ? 'en' : 'zh';
+  render();
+});
+$('menu-logout').addEventListener('click', async () => {
+  await fetch('/auth/logout', { method: 'POST' }).catch(() => null);
+  location.href = '/login';
+});
+
+// Esc closes the topmost layer first: an open menu, then the drawer.
+document.addEventListener('keydown', e => {
+  if (e.key !== 'Escape') return;
+  if (!$('menu').hidden) { setMenu(false); $('user-btn').focus(); return; }
+  if (!$('provider-menu').hidden) { setProviderMenu(false); $('provider-btn').focus(); return; }
+  closeDrawer();
+});
+
+render();
+loadConfig();
+loadModels();
 </script>
-<style>[x-cloak]{display:none!important}</style>
 </body>
 </html>

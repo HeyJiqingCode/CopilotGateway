@@ -19,6 +19,7 @@ type stubModels struct {
 
 func (s stubModels) GetRaw(ctx context.Context) ([]byte, error) { return s.raw, s.err }
 func (s stubModels) CachedAt() time.Time                        { return s.at }
+func (s stubModels) Refresh(ctx context.Context) error          { return nil }
 
 func testConfig() Config {
 	return Config{Username: "admin", Password: "pass123", SessionHours: 1}
