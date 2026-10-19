@@ -14,8 +14,14 @@ type Client struct {
 	creds     *StoredCredentials
 	refreshMu sync.Mutex // serializes refresh/device-flow operations
 
-	// fetchCopilotToken exchanges the GitHub token; replaceable in tests.
+	// Network steps, replaceable in tests.
 	fetchCopilotToken func(githubToken string) (*CopilotToken, error)
+	startDeviceFlow   func() (*DeviceCodeResponse, error)
+	pollDeviceFlow    func(deviceCode string, interval int, timeout time.Duration) (string, error)
+
+	// pending is the background device flow started after the GitHub
+	// authorization was lost; guarded by refreshMu.
+	pending *pendingDeviceFlow
 }
 
 // NewClient creates a new auth client
@@ -34,6 +40,8 @@ func NewClient(tokenDir string) (*Client, error) {
 		storage:           storage,
 		creds:             creds,
 		fetchCopilotToken: GetCopilotToken,
+		startDeviceFlow:   InitiateDeviceFlow,
+		pollDeviceFlow:    PollForAccessToken,
 	}, nil
 }
 
@@ -84,7 +92,7 @@ func (c *Client) GetValidToken(ctx context.Context) (*CopilotToken, error) {
 		}
 	}
 
-	return nil, &ReauthRequiredError{}
+	return nil, c.reauthRequired()
 }
 
 // GetToken returns a valid Copilot bearer token string. It satisfies the

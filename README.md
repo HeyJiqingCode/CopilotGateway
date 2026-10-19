@@ -119,6 +119,16 @@ COPILOTGW_WEB_PASSWORD=<your_web_password> \
 > The CLI listens on `127.0.0.1:7777` by default; pass `-host 0.0.0.0` to expose it beyond localhost.\
 > All flags are listed in [Configuration](#configuration).
 
+### Lost GitHub Authorization
+
+If GitHub rejects the stored token while the gateway is running (for example, the app authorization was revoked), the gateway clears it and starts a new device flow in the background. Every API request then fails with a non-retryable `403` whose message carries the sign-in link and code, so Claude Code and Codex show it directly:
+
+```
+GitHub Copilot authorization lost. Visit https://github.com/login/device and enter code ABCD-1234 (expires 12:30 UTC) to restore the gateway.
+```
+
+Enter the code and the gateway recovers without a restart. The same code is also written to the logs; if it expires unused, the next request starts a new one.
+
 ## Configuration
 
 ### CLI Flags
