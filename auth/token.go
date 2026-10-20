@@ -40,16 +40,11 @@ var sharedHTTPClient = &http.Client{Timeout: 30 * time.Second}
 type CopilotTokenResponse struct {
 	Token     string `json:"token"`
 	ExpiresAt int64  `json:"expires_at"`
-	RefreshIn int    `json:"refresh_in"`
-	Endpoints struct {
-		API string `json:"api"`
-	} `json:"endpoints"`
 }
 
 type CopilotToken struct {
 	Token     string    `json:"token"`
 	ExpiresAt time.Time `json:"expires_at"`
-	UpdatedAt time.Time `json:"updated_at"`
 	BaseURL   string    `json:"base_url"`
 }
 
@@ -96,7 +91,6 @@ func GetCopilotToken(accessToken string) (*CopilotToken, error) {
 	return &CopilotToken{
 		Token:     tokenResp.Token,
 		ExpiresAt: expiresAt,
-		UpdatedAt: time.Now(),
 		BaseURL:   baseURL,
 	}, nil
 }

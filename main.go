@@ -85,16 +85,15 @@ func main() {
 	ctx := context.Background()
 	authClient.Start(ctx, os.Stdout)
 
-	// Shared HTTP transport for all upstream requests
-	transport := upstream.NewTransport()
+	// One upstream client for every handler. Its transport negotiates HTTP/2,
+	// so concurrent streams share a Copilot connection.
+	upstreamClient := upstream.NewClient(authClient, upstream.NewTransport())
 
 	// Shared models cache — a single fetch populates both raw JSON (for
 	// proxying GET /v1/models) and parsed model info (for capability detection).
-	upstreamClient := upstream.NewClient(authClient, transport)
 	modelsCache := models.NewCache(upstreamClient, 5*time.Minute)
 
-	// Initialize proxy handler
-	proxyHandler := proxy.NewHandler(authClient, transport, modelsCache)
+	proxyHandler := proxy.NewHandler(upstreamClient, modelsCache)
 	proxyHandler.DisableResponsesIDCompat = !cfg.responsesIDCompat
 	slog.Info("Responses output ID compatibility", "enabled", cfg.responsesIDCompat)
 	proxyHandler.AutoReviewModel = cfg.autoReviewModel
@@ -102,8 +101,7 @@ func main() {
 		slog.Info("auto-review model configured", "model", cfg.autoReviewModel)
 	}
 
-	// Initialize Anthropic handler
-	anthropicHandler := anthropic.NewHandler(authClient, transport, modelsCache)
+	anthropicHandler := anthropic.NewHandler(upstreamClient, modelsCache)
 
 	// Set up routes
 	mux := http.NewServeMux()

@@ -64,16 +64,14 @@ func AddHeaders(req *http.Request, token string) {
 }
 
 // ModelAccessHeaders 返回模型目录请求专用头,用于拿到 VS Code 同款模型能力元数据。
-func ModelAccessHeaders(requestID string) map[string]string {
-	if requestID == "" {
-		requestID = GenerateRequestID()
-	}
+// 它们在 AddHeaders 之后设置,覆盖对话用的 intent 与请求 ID。
+func ModelAccessHeaders() map[string]string {
+	requestID := GenerateRequestID()
 	return map[string]string{
-		"Openai-Intent":        "model-access",
-		"X-Interaction-Type":   "model-access",
-		"X-Agent-Task-Id":      requestID,
-		"X-Request-Id":         requestID,
-		"X-Github-Api-Version": APIVersion,
+		"Openai-Intent":      "model-access",
+		"X-Interaction-Type": "model-access",
+		"X-Agent-Task-Id":    requestID,
+		"X-Request-Id":       requestID,
 	}
 }
 

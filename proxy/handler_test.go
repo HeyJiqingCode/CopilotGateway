@@ -297,39 +297,29 @@ func (s *stubTokenProvider) GetBaseURL() string {
 	return s.baseURL
 }
 
-// TestHandlePassthrough_StreamingNetworkFailure_Returns502 verifies that when
-// the upstream connection fails before any response headers are written (e.g.
-// connection refused), the client receives a 502 instead of an empty 200.
-func TestHandlePassthrough_StreamingNetworkFailure_Returns502(t *testing.T) {
-	// Start a listener and immediately close it to get a guaranteed-refused port.
+// TestServeHTTP_UnreachableUpstreamReturns502 checks that a transport failure
+// before any response is written is a JSON bad gateway on every path.
+func TestServeHTTP_UnreachableUpstreamReturns502(t *testing.T) {
 	ln, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
 		t.Fatal(err)
 	}
 	addr := ln.Addr().String()
 	ln.Close()
+	uc := upstream.NewClient(&stubTokenProvider{baseURL: "http://" + addr}, nil)
+	handler := NewHandler(uc, models.NewCache(uc, time.Minute))
 
-	tp := &stubTokenProvider{baseURL: "http://" + addr}
-	handler := &Handler{
-		upstream: upstream.NewClient(tp, nil),
-	}
-
-	body := `{"model":"gpt-4","messages":[],"stream":true}`
-	req := httptest.NewRequest("POST", "/v1/chat/completions", strings.NewReader(body))
-	req.Header.Set("Content-Type", "application/json")
-	rec := httptest.NewRecorder()
-
-	handler.handlePassthrough(rec, req, "/chat/completions")
-
-	if rec.Code != http.StatusBadGateway {
-		t.Fatalf("expected status 502, got %d; body: %s", rec.Code, rec.Body.String())
-	}
-
-	var errResp OpenAIErrorResponse
-	if err := json.NewDecoder(rec.Body).Decode(&errResp); err != nil {
-		t.Fatalf("failed to decode error response: %v", err)
-	}
-	if errResp.Error.Type != OpenAIErrorTypeServerError {
-		t.Fatalf("expected error type %q, got %q", OpenAIErrorTypeServerError, errResp.Error.Type)
+	for _, tc := range []struct{ method, path, body string }{
+		{"POST", "/v1/chat/completions", `{"model":"gpt-4","messages":[],"stream":false}`},
+		{"POST", "/v1/chat/completions", `{"model":"gpt-4","messages":[],"stream":true}`},
+		{"GET", "/v1/models", ""},
+	} {
+		rec := httptest.NewRecorder()
+		handler.ServeHTTP(rec, httptest.NewRequest(tc.method, tc.path, strings.NewReader(tc.body)))
+		var errResp OpenAIErrorResponse
+		_ = json.Unmarshal(rec.Body.Bytes(), &errResp)
+		if rec.Code != http.StatusBadGateway || errResp.Error.Type != OpenAIErrorTypeServerError {
+			t.Errorf("%s %s: status = %d, error = %+v; want 502 server_error", tc.method, tc.path, rec.Code, errResp.Error)
+		}
 	}
 }

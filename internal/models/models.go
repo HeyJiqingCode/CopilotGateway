@@ -48,8 +48,7 @@ type cacheData struct {
 type Cache struct {
 	mu       sync.RWMutex
 	data     cacheData
-	valid    bool
-	cachedAt time.Time
+	cachedAt time.Time // zero until the first successful fetch
 	ttl      time.Duration
 	sf       singleflight.Group
 	upstream *upstream.Client
@@ -93,38 +92,24 @@ func (c *Cache) CachedAt() time.Time {
 
 func (c *Cache) get(ctx context.Context) ([]byte, map[string]*Info, error) {
 	// Fast path: read lock check.
-	c.mu.RLock()
-	if c.valid && time.Since(c.cachedAt) < c.ttl {
-		d := c.data
-		c.mu.RUnlock()
+	if d, ok := c.fresh(); ok {
 		return d.raw, d.parsed, nil
 	}
-	c.mu.RUnlock()
 
 	slog.Debug("models cache miss, fetching from upstream")
 
 	// Slow path: singleflight to deduplicate concurrent fetches.
 	result, err, _ := c.sf.Do("fetch", func() (interface{}, error) {
 		// Double-check after acquiring singleflight.
-		c.mu.RLock()
-		if c.valid && time.Since(c.cachedAt) < c.ttl {
-			d := c.data
-			c.mu.RUnlock()
+		if d, ok := c.fresh(); ok {
 			return d, nil
 		}
-		c.mu.RUnlock()
 
 		d, err := c.fetch(context.WithoutCancel(ctx))
 		if err != nil {
 			return nil, err
 		}
-
-		c.mu.Lock()
-		c.data = d
-		c.valid = true
-		c.cachedAt = time.Now()
-		c.mu.Unlock()
-
+		c.store(d)
 		slog.Debug("models cache refreshed", "count", len(d.parsed))
 		return d, nil
 	})
@@ -143,22 +128,32 @@ func (c *Cache) Refresh(ctx context.Context) error {
 		if err != nil {
 			return nil, err
 		}
-		c.mu.Lock()
-		c.data = d
-		c.valid = true
-		c.cachedAt = time.Now()
-		c.mu.Unlock()
+		c.store(d)
 		slog.Debug("models cache refreshed on demand", "count", len(d.parsed))
 		return nil, nil
 	})
 	return err
 }
 
+// fresh returns the cached catalog while it is within the TTL.
+func (c *Cache) fresh() (cacheData, bool) {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	return c.data, !c.cachedAt.IsZero() && time.Since(c.cachedAt) < c.ttl
+}
+
+func (c *Cache) store(d cacheData) {
+	c.mu.Lock()
+	c.data = d
+	c.cachedAt = time.Now()
+	c.mu.Unlock()
+}
+
 func (c *Cache) fetch(ctx context.Context) (cacheData, error) {
 	_, respData, err := c.upstream.Do(ctx, upstream.Request{
 		Method:       "GET",
 		Endpoint:     "/models",
-		ExtraHeaders: copilot.ModelAccessHeaders(copilot.GenerateRequestID()),
+		ExtraHeaders: copilot.ModelAccessHeaders(),
 	})
 	if err != nil {
 		return cacheData{}, fmt.Errorf("models request failed: %w", err)

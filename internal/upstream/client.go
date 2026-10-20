@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"crypto/tls"
-	"encoding/json"
 	"fmt"
 	"io"
 	"net"
@@ -65,7 +64,7 @@ func NewClient(tp TokenProvider, transport *http.Transport) *Client {
 type Request struct {
 	Method       string
 	Endpoint     string
-	Body         interface{}       // []byte, io.Reader, or JSON-marshalable struct; nil for no body
+	Body         []byte            // nil for no body
 	QueryString  string            // raw query string to append (without leading '?')
 	Stream       bool              // if true, returns *http.Response instead of reading body
 	ExtraHeaders map[string]string // additional headers to set after copilot headers
@@ -80,32 +79,20 @@ const (
 	MaxRequestBody = 64 << 20 // 64 MiB; independent of model token limits
 )
 
-// Do executes a request against the upstream Copilot API.
+// Do executes a request against the upstream Copilot API. An upstream status
+// of 400 or above becomes an *UpstreamError carrying the response body.
 //
-// For non-streaming (Stream=false): returns (*Response, nil) or (nil, error).
-// For streaming (Stream=true): returns (*Response, nil) where Response.StreamResp
-// is set, or (nil, error). The caller must close the HTTP response body.
+// Without Stream it returns the response body bytes. With Stream it returns
+// the live *http.Response, whose body the caller must close.
 func (c *Client) Do(ctx context.Context, r Request) (*http.Response, []byte, error) {
 	token, err := c.TokenProvider.GetToken(ctx)
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to get valid token: %w", err)
 	}
 
-	// Resolve body to io.Reader
 	var bodyReader io.Reader
-	switch v := r.Body.(type) {
-	case nil:
-		// no body
-	case []byte:
-		bodyReader = bytes.NewReader(v)
-	case io.Reader:
-		bodyReader = v
-	default:
-		data, err := json.Marshal(v)
-		if err != nil {
-			return nil, nil, fmt.Errorf("failed to marshal request: %w", err)
-		}
-		bodyReader = bytes.NewReader(data)
+	if r.Body != nil {
+		bodyReader = bytes.NewReader(r.Body)
 	}
 
 	// Build URL

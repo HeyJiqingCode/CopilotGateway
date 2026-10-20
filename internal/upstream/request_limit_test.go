@@ -231,9 +231,9 @@ func bodyLimitHandler(t *testing.T, endpoint string, serve http.HandlerFunc) htt
 	client := upstream.NewClient(provider, transport)
 	cache := models.NewCache(client, time.Minute)
 	if endpoint == "/v1/messages" {
-		return anthropic.NewHandler(provider, transport, cache)
+		return anthropic.NewHandler(client, cache)
 	}
-	return proxy.NewHandler(provider, transport, cache)
+	return proxy.NewHandler(client, cache)
 }
 
 type bodyLimitTokenProvider struct{ baseURL string }

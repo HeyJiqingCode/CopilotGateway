@@ -50,26 +50,18 @@ func NewClient(tokenDir string) (*Client, error) {
 // GetValidToken returns a valid Copilot token, performing authentication if necessary
 func (c *Client) GetValidToken(ctx context.Context) (*CopilotToken, error) {
 	// Fast path: check with read lock only
-	c.mu.RLock()
-	if c.creds.CopilotToken != nil && c.creds.CopilotToken.IsTokenUsable() {
-		token := c.creds.CopilotToken
-		c.mu.RUnlock()
+	if token := c.usableToken(); token != nil {
 		return token, nil
 	}
-	c.mu.RUnlock()
 
 	// Slow path: serialize refreshes so only one goroutine does network I/O
 	c.refreshMu.Lock()
 	defer c.refreshMu.Unlock()
 
 	// Re-check: another goroutine may have refreshed while we waited
-	c.mu.RLock()
-	if c.creds.CopilotToken != nil && c.creds.CopilotToken.IsTokenUsable() {
-		token := c.creds.CopilotToken
-		c.mu.RUnlock()
+	if token := c.usableToken(); token != nil {
 		return token, nil
 	}
-	c.mu.RUnlock()
 
 	// Network calls happen here WITHOUT holding mu, so readers are not blocked.
 
@@ -95,6 +87,16 @@ func (c *Client) GetValidToken(ctx context.Context) (*CopilotToken, error) {
 	}
 
 	return nil, c.reauthRequired()
+}
+
+// usableToken returns the cached Copilot token unless it is near expiry.
+func (c *Client) usableToken() *CopilotToken {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	if c.creds.CopilotToken.IsTokenUsable() {
+		return c.creds.CopilotToken
+	}
+	return nil
 }
 
 // GetToken returns a valid Copilot bearer token string. It satisfies the
@@ -150,7 +152,7 @@ func (c *Client) refreshCopilotToken() error {
 				slog.Warn("failed to clear invalid credentials", "error", clearErr)
 			}
 		}
-		return fmt.Errorf("failed to get copilot token: %w", err)
+		return err
 	}
 
 	c.mu.Lock()

@@ -1,8 +1,10 @@
 package proxy
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -32,10 +34,18 @@ func TestReauthRequired_Returns403WithDeviceCode(t *testing.T) {
 		{"models", "GET", "/v1/models", ""},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
+			// Waiting for sign-in is an expected state, not a server error.
+			var logs bytes.Buffer
+			defer slog.SetDefault(slog.Default())
+			slog.SetDefault(slog.New(slog.NewTextHandler(&logs, &slog.HandlerOptions{Level: slog.LevelWarn})))
+
 			req := httptest.NewRequest(tc.method, tc.path, strings.NewReader(tc.body))
 			rec := httptest.NewRecorder()
 			handler.ServeHTTP(rec, req)
 
+			if logs.Len() > 0 {
+				t.Errorf("logged a warning or error for a pending sign-in: %s", logs.String())
+			}
 			if rec.Code != http.StatusForbidden {
 				t.Fatalf("status = %d, want 403; body: %s", rec.Code, rec.Body.String())
 			}

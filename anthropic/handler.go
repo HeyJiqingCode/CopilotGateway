@@ -24,12 +24,8 @@ type Handler struct {
 }
 
 // NewHandler creates a new Anthropic handler.
-// The transport is used for upstream HTTP requests (pass nil to create a new one).
-func NewHandler(authClient upstream.TokenProvider, transport *http.Transport, mc *models.Cache) *Handler {
-	return &Handler{
-		upstream: upstream.NewClient(authClient, transport),
-		models:   mc,
-	}
+func NewHandler(uc *upstream.Client, mc *models.Cache) *Handler {
+	return &Handler{upstream: uc, models: mc}
 }
 
 // ServeHTTP handles /v1/messages requests
@@ -70,15 +66,15 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	defer func() {
-		slog.Info("anthropic request", "endpoint", "/v1/messages", "model", model, "stream", req.stream, "messages", req.messageCount, "route", "native", "duration_ms", time.Since(start).Milliseconds())
+		slog.Info("anthropic request", "endpoint", "/v1/messages", "model", model, "stream", req.stream, "messages", req.messageCount, "duration_ms", time.Since(start).Milliseconds())
 	}()
 
 	// 能力信息仅用于判断模型是否支持 reasoning effort(驱动下方的剥离逻辑)。
 	// 该端点只服务原生支持 /v1/messages 的 Claude 模型,一律直通上游。
-	modelInfo, _ := h.getModelInfo(r.Context(), model)
+	modelInfo := h.getModelInfo(r.Context(), model)
 
 	// 仅当模型确定不支持 reasoning effort 且客户端确实发了 output_config/thinking 时才剥离。
-	dropReasoning := (req.has("output_config") || req.has("thinking")) && !modelSupportsReasoningEffort(modelInfo)
+	dropReasoning := (req.has("output_config") || req.has("thinking")) && !models.SupportsReasoningEffort(modelInfo)
 	// 客户端的 anthropic-beta 原样转发;上游仅在带 context-management beta 时接受 context_management。
 	betas := strings.Join(r.Header.Values("anthropic-beta"), ",")
 	dropContextManagement := req.has("context_management") && !hasContextManagementBeta(betas)
@@ -88,8 +84,10 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		WriteAnthropicError(w, http.StatusBadRequest, AnthropicErrorTypeInvalidRequest, fmt.Sprintf("Invalid JSON: %v", err))
 		return
 	}
-	slog.Debug("native /messages passthrough request", "model", model, "top_level_keys", req.keys(), "anthropic_beta", betas,
-		"dropped_context_management", dropContextManagement, "dropped_reasoning", dropReasoning, "removed_cache_control_scopes", removedScopes)
+	if slog.Default().Enabled(r.Context(), slog.LevelDebug) { // keys() allocates and sorts
+		slog.Debug("native /messages passthrough request", "model", model, "top_level_keys", req.keys(), "anthropic_beta", betas,
+			"dropped_context_management", dropContextManagement, "dropped_reasoning", dropReasoning, "removed_cache_control_scopes", removedScopes)
+	}
 	h.handleNativeMessagesPassthrough(w, r, body, req.stream, betas)
 }
 
@@ -105,120 +103,73 @@ func hasContextManagementBeta(betas string) bool {
 }
 
 func (h *Handler) handleNativeMessagesPassthrough(w http.ResponseWriter, r *http.Request, body []byte, stream bool, betas string) {
-	var extraHeaders map[string]string
+	req := upstream.Request{Endpoint: "/v1/messages", Body: body, Stream: stream, QueryString: r.URL.RawQuery}
 	if betas != "" {
-		extraHeaders = map[string]string{"anthropic-beta": betas}
+		req.ExtraHeaders = map[string]string{"anthropic-beta": betas}
 	}
-	if stream {
-		resp, _, err := h.upstream.Do(r.Context(), upstream.Request{Endpoint: "/v1/messages", Body: body, Stream: true, QueryString: r.URL.RawQuery, ExtraHeaders: extraHeaders})
+	if !stream {
+		_, respData, err := h.upstream.Do(r.Context(), req)
 		if err != nil {
-			var upstreamErr *upstream.UpstreamError
-			if errors.As(err, &upstreamErr) {
-				h.writeRawUpstreamError(w, upstreamErr)
-				return
-			}
-			if writeReauthRequired(w, err) {
-				return
-			}
-			upstream.LogRequestError("native /messages streaming request failed", err)
-			sse.BeginSSE(w)
-			w.WriteHeader(http.StatusBadGateway)
-			h.writeSSEError(w, "Upstream streaming request failed")
+			writeUpstreamFailure(w, "native /messages request failed", err)
 			return
 		}
-		defer resp.Body.Close()
-
-		flusher, ok := w.(http.Flusher)
-		if !ok {
-			WriteAnthropicError(w, http.StatusInternalServerError, AnthropicErrorTypeAPI, "Streaming unsupported")
-			return
-		}
-
-		sse.BeginSSE(w)
-
-		reader := bufio.NewReaderSize(resp.Body, 32*1024)
-		for {
-			line, err := reader.ReadBytes('\n')
-			if len(line) > 0 {
-				if _, writeErr := w.Write(line); writeErr != nil {
-					slog.Error("failed to write native /messages stream", "error", writeErr)
-					return
-				}
-				// Flush at SSE event boundaries (blank lines) instead of every line
-				// to reduce syscall overhead while maintaining correct SSE delivery.
-				if isBlankSSELine(line) {
-					flusher.Flush()
-				}
-			}
-
-			if errors.Is(err, io.EOF) {
-				break
-			}
-			if err != nil {
-				slog.Error("error reading native /messages stream", "error", err)
-				return
-			}
-		}
-
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write(respData)
 		return
 	}
 
-	_, respData, err := h.upstream.Do(r.Context(), upstream.Request{Endpoint: "/v1/messages", Body: body, QueryString: r.URL.RawQuery, ExtraHeaders: extraHeaders})
-	if err != nil {
-		var upstreamErr *upstream.UpstreamError
-		if errors.As(err, &upstreamErr) {
-			h.writeRawUpstreamError(w, upstreamErr)
-			return
-		}
-		if writeReauthRequired(w, err) {
-			return
-		}
-		upstream.LogRequestError("native /messages request failed", err)
-		WriteAnthropicError(w, http.StatusInternalServerError, AnthropicErrorTypeAPI, "Upstream request failed")
+	flusher, ok := w.(http.Flusher)
+	if !ok {
+		WriteAnthropicError(w, http.StatusInternalServerError, AnthropicErrorTypeAPI, "Streaming unsupported")
 		return
 	}
-
-	w.Header().Set("Content-Type", "application/json")
-	_, _ = w.Write(respData)
-}
-
-// --- SSE helpers ---
-
-func (h *Handler) writeSSEEvent(w io.Writer, event AnthropicStreamEvent) error {
-	eventData, err := json.Marshal(event)
+	resp, _, err := h.upstream.Do(r.Context(), req)
 	if err != nil {
-		return fmt.Errorf("failed to marshal event: %w", err)
+		writeUpstreamFailure(w, "native /messages streaming request failed", err)
+		return
 	}
+	defer resp.Body.Close()
 
-	_, err = fmt.Fprintf(w, "event: %s\ndata: %s\n\n", event.Type, eventData)
-	return err
-}
+	sse.BeginSSE(w)
+	reader := bufio.NewReaderSize(resp.Body, 32*1024)
+	for {
+		line, err := reader.ReadBytes('\n')
+		if len(line) > 0 {
+			if _, writeErr := w.Write(line); writeErr != nil {
+				slog.Error("failed to write native /messages stream", "error", writeErr)
+				return
+			}
+			// Flush at SSE event boundaries (blank lines) instead of every line
+			// to reduce syscall overhead while maintaining correct SSE delivery.
+			if isBlankSSELine(line) {
+				flusher.Flush()
+			}
+		}
 
-func (h *Handler) writeSSEError(w io.Writer, message string) {
-	h.writeSSETypedError(w, AnthropicErrorTypeAPI, message)
-}
-
-func (h *Handler) writeSSETypedError(w io.Writer, errorType, message string) {
-	errorEvent := CreateErrorEvent(message)
-	if errorEvent.Error != nil {
-		errorEvent.Error.Type = errorType
+		if errors.Is(err, io.EOF) {
+			return
+		}
+		if err != nil {
+			slog.Error("error reading native /messages stream", "error", err)
+			return
+		}
 	}
-	h.writeSSEEvent(w, errorEvent)
 }
 
-// CreateErrorEvent creates an error event for stream failures
-func CreateErrorEvent(message string) AnthropicStreamEvent {
-	return AnthropicStreamEvent{
-		Type: "error",
-		Error: &AnthropicError{
-			Type:    AnthropicErrorTypeAPI,
-			Message: message,
-		},
+// writeUpstreamFailure forwards an upstream error response as-is, answers a
+// lost GitHub authorization with its 403, and reports anything else (the
+// upstream could not be reached) as a retryable 502.
+func writeUpstreamFailure(w http.ResponseWriter, msg string, err error) {
+	var upstreamErr *upstream.UpstreamError
+	if errors.As(err, &upstreamErr) {
+		upstreamErr.WriteRawError(w)
+		return
 	}
-}
-
-func (h *Handler) writeRawUpstreamError(w http.ResponseWriter, upstreamErr *upstream.UpstreamError) {
-	upstreamErr.WriteRawError(w)
+	if writeReauthRequired(w, err) {
+		return
+	}
+	upstream.LogRequestError(msg, err)
+	WriteAnthropicError(w, http.StatusBadGateway, AnthropicErrorTypeAPI, "Upstream request failed")
 }
 
 // isBlankSSELine reports whether line consists solely of newline characters

@@ -1,11 +1,5 @@
 package anthropic
 
-// AnthropicStreamEvent is the SSE error event the gateway emits itself.
-type AnthropicStreamEvent struct {
-	Type  string          `json:"type"`
-	Error *AnthropicError `json:"error,omitempty"`
-}
-
 // AnthropicErrorResponse represents an error response from the Anthropic API
 type AnthropicErrorResponse struct {
 	Type  string         `json:"type"` // "error"

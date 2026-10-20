@@ -22,21 +22,9 @@ type headersSentError struct{ err error }
 func (e *headersSentError) Error() string { return e.err.Error() }
 func (e *headersSentError) Unwrap() error { return e.err }
 
-// HandleStreamingRequest handles streaming requests to Copilot API
-func (h *Handler) HandleStreamingRequest(w http.ResponseWriter, r *http.Request, endpoint string) error {
-	var body interface{}
-	if r.Body != nil {
-		body = r.Body
-	}
-
-	resp, _, err := h.upstream.Do(r.Context(), upstream.Request{
-		Method:       r.Method,
-		Endpoint:     endpoint,
-		Body:         body,
-		QueryString:  r.URL.RawQuery,
-		Stream:       true,
-		ExtraHeaders: collectForwardHeaders(r),
-	})
+// handleStreamingRequest forwards a streaming request and relays its SSE stream.
+func (h *Handler) handleStreamingRequest(w http.ResponseWriter, r *http.Request, req upstream.Request) error {
+	resp, _, err := h.upstream.Do(r.Context(), req)
 	if err != nil {
 		var upstreamErr *upstream.UpstreamError
 		if errors.As(err, &upstreamErr) {
@@ -56,7 +44,7 @@ func (h *Handler) HandleStreamingRequest(w http.ResponseWriter, r *http.Request,
 	}
 
 	// Stream the response — headers are already sent at this point.
-	if err := h.streamResponse(w, resp.Body, endpoint); err != nil {
+	if err := h.streamResponse(w, resp.Body, req.Endpoint); err != nil {
 		return &headersSentError{err: err}
 	}
 	return nil

@@ -2,9 +2,11 @@ package anthropic
 
 import (
 	"context"
+	"errors"
 	"log/slog"
 	"regexp"
 
+	"github.com/HeyJiqingCode/CopilotGateway/auth"
 	"github.com/HeyJiqingCode/CopilotGateway/internal/models"
 )
 
@@ -12,8 +14,7 @@ import (
 // Only needed for non-obvious mappings that can't be derived algorithmically.
 var modelAliases = map[string]string{
 	// Non-obvious version mappings (pre-4.5 naming used single-digit versions)
-	"claude-opus-4":   "claude-opus-4.5",
-	"claude-sonnet-4": "claude-sonnet-4", // identity, but here for documentation
+	"claude-opus-4": "claude-opus-4.5",
 }
 
 // versionHyphenRe matches hyphen-separated version numbers like "4-6" or "4-5"
@@ -44,28 +45,19 @@ func resolveModelAlias(modelID string) string {
 	if alias, ok := modelAliases[normalized]; ok {
 		return alias
 	}
-
-	// If normalization changed anything, return the normalized form
-	if normalized != modelID {
-		return normalized
-	}
-
-	return modelID
+	return normalized
 }
 
-// getModelInfo returns cached model info, fetching from upstream if needed.
-func (h *Handler) getModelInfo(ctx context.Context, modelID string) (*models.Info, bool) {
-	modelID = resolveModelAlias(modelID)
-
+// getModelInfo returns the catalog entry for an already resolved model ID, or
+// nil when the model is unknown or the catalog cannot be fetched.
+func (h *Handler) getModelInfo(ctx context.Context, modelID string) *models.Info {
 	infoMap, err := h.models.GetInfo(ctx)
 	if err != nil {
-		slog.Error("failed to fetch models for capability detection", "error", err)
-		return nil, true
+		// A pending sign-in is answered with its 403 right after; not worth a warning.
+		if !errors.As(err, new(*auth.ReauthRequiredError)) {
+			slog.Warn("failed to fetch models for capability detection", "error", err)
+		}
+		return nil
 	}
-
-	return infoMap[modelID], false
-}
-
-func modelSupportsReasoningEffort(info *models.Info) bool {
-	return models.SupportsReasoningEffort(info)
+	return infoMap[modelID]
 }

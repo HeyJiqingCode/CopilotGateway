@@ -43,7 +43,11 @@ func TestResponsesIDs_LiveCopilotReplay(t *testing.T) {
 					"parameters": map[string]interface{}{"type": "object", "properties": map[string]interface{}{}, "required": []string{}, "additionalProperties": false},
 				}},
 			}
-			resp, _, err := uc.Do(ctx, upstream.Request{Endpoint: "/responses", Body: request, Stream: true})
+			body, err := json.Marshal(request)
+			if err != nil {
+				t.Fatal(err)
+			}
+			resp, _, err := uc.Do(ctx, upstream.Request{Endpoint: "/responses", Body: body, Stream: true})
 			if err != nil {
 				t.Fatalf("initial Copilot request failed (%T); error body withheld", err)
 			}

@@ -116,8 +116,8 @@ func TestCacheFetchUsesModelAccessHeaders(t *testing.T) {
 	if gotHeaders.Get("X-Request-Id") == "" {
 		t.Error("X-Request-Id should be present")
 	}
-	if gotHeaders.Get("X-Agent-Task-Id") == "" {
-		t.Error("X-Agent-Task-Id should be present")
+	if got, want := gotHeaders.Get("X-Agent-Task-Id"), gotHeaders.Get("X-Request-Id"); got != want {
+		t.Errorf("X-Agent-Task-Id = %q, want the request ID %q", got, want)
 	}
 }
 

@@ -1,7 +1,6 @@
 package proxy
 
 import (
-	"bytes"
 	"encoding/json"
 	"errors"
 	"io"
@@ -30,12 +29,8 @@ type Handler struct {
 }
 
 // NewHandler creates a new proxy handler.
-// The transport is used for upstream HTTP requests (pass nil to create a new one).
-func NewHandler(tokenProvider upstream.TokenProvider, transport *http.Transport, mc *models.Cache) *Handler {
-	return &Handler{
-		upstream:    upstream.NewClient(tokenProvider, transport),
-		modelsCache: mc,
-	}
+func NewHandler(uc *upstream.Client, mc *models.Cache) *Handler {
+	return &Handler{upstream: uc, modelsCache: mc}
 }
 
 // ServeHTTP handles all proxy requests
@@ -51,9 +46,7 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	switch endpoint {
 	case "/models":
 		h.handleModels(w, r)
-	case "/chat/completions":
-		h.handlePassthrough(w, r, endpoint)
-	case "/responses":
+	case "/chat/completions", "/responses":
 		h.handlePassthrough(w, r, endpoint)
 	default:
 		WriteOpenAIError(w, http.StatusNotFound, OpenAIErrorTypeInvalidRequest, "Endpoint not found")
@@ -69,16 +62,7 @@ func (h *Handler) handleModels(w http.ResponseWriter, r *http.Request) {
 
 	respData, err := h.modelsCache.GetRaw(r.Context())
 	if err != nil {
-		var upstreamErr *upstream.UpstreamError
-		if errors.As(err, &upstreamErr) {
-			upstreamErr.WriteRawError(w)
-			return
-		}
-		if writeReauthRequired(w, err) {
-			return
-		}
-		upstream.LogRequestError("failed to fetch models", err)
-		WriteOpenAIError(w, http.StatusInternalServerError, OpenAIErrorTypeServerError, "Internal server error")
+		writeUpstreamFailure(w, "failed to fetch models", err)
 		return
 	}
 
@@ -86,81 +70,68 @@ func (h *Handler) handleModels(w http.ResponseWriter, r *http.Request) {
 	w.Write(respData)
 }
 
-// handlePassthrough handles direct passthrough requests
+// handlePassthrough forwards the request body to the same upstream endpoint;
+// the client already picked the right one for its model.
 func (h *Handler) handlePassthrough(w http.ResponseWriter, r *http.Request, endpoint string) {
 	// Check body size before processing — reject oversized payloads with 413
-	var bodyBytes []byte
-	if r.Body != nil {
-		var err error
-		bodyBytes, err = io.ReadAll(io.LimitReader(r.Body, upstream.MaxRequestBody+1))
-		if err != nil {
-			WriteOpenAIError(w, http.StatusBadRequest, OpenAIErrorTypeInvalidRequest, "Failed to read request body")
-			return
-		}
-		if len(bodyBytes) > upstream.MaxRequestBody {
-			WriteOpenAIError(w, http.StatusRequestEntityTooLarge, OpenAIErrorTypeInvalidRequest, upstream.RequestBodyTooLargeMessage())
-			return
-		}
-		if routed, ok := rewriteAutoReviewModel(bodyBytes, h.AutoReviewModel); ok {
-			slog.Info("auto-review model applied", "endpoint", endpoint, "to", h.AutoReviewModel)
-			bodyBytes = routed
-		}
-		r.Body = io.NopCloser(bytes.NewReader(bodyBytes))
-	}
-
-	h.handlePassthroughBody(w, r, endpoint, bodyBytes)
-}
-
-// handlePassthroughBody processes the passthrough request after the body has been read and validated.
-// It takes pre-read body bytes to avoid redundant body reading.
-func (h *Handler) handlePassthroughBody(w http.ResponseWriter, r *http.Request, endpoint string, bodyBytes []byte) {
-	// 该端点固定直通上游:客户端已按模型选好正确端点(Codex→/responses、CC→/v1/messages),
-	// 无需再做跨格式智能路由。
-	if isStreamingRequest(bodyBytes) {
-		if err := h.HandleStreamingRequest(w, r, endpoint); err != nil {
-			upstream.LogRequestError("streaming request failed", err, "endpoint", endpoint)
-			var hse *headersSentError
-			if !errors.As(err, &hse) && !writeReauthRequired(w, err) {
-				WriteOpenAIError(w, http.StatusBadGateway, OpenAIErrorTypeServerError, "upstream request failed")
-			}
-		}
-		return
-	}
-
-	respData, err := h.doNonStreamingRequest(r, endpoint)
+	body, err := io.ReadAll(io.LimitReader(r.Body, upstream.MaxRequestBody+1))
 	if err != nil {
-		var upstreamErr *upstream.UpstreamError
-		if errors.As(err, &upstreamErr) {
-			upstreamErr.WriteRawError(w)
-			return
-		}
-		if writeReauthRequired(w, err) {
-			return
-		}
-		upstream.LogRequestError("passthrough request failed", err, "endpoint", endpoint)
-		WriteOpenAIError(w, http.StatusInternalServerError, OpenAIErrorTypeServerError, "Internal server error")
+		WriteOpenAIError(w, http.StatusBadRequest, OpenAIErrorTypeInvalidRequest, "Failed to read request body")
 		return
 	}
-
-	w.Header().Set("Content-Type", "application/json")
-	w.Write(respData)
-}
-
-// doNonStreamingRequest makes a non-streaming request to the Copilot API via the shared upstream client.
-func (h *Handler) doNonStreamingRequest(r *http.Request, endpoint string) ([]byte, error) {
-	var body interface{}
-	if r.Body != nil {
-		body = r.Body
+	if len(body) > upstream.MaxRequestBody {
+		WriteOpenAIError(w, http.StatusRequestEntityTooLarge, OpenAIErrorTypeInvalidRequest, upstream.RequestBodyTooLargeMessage())
+		return
+	}
+	if routed, ok := rewriteAutoReviewModel(body, h.AutoReviewModel); ok {
+		slog.Info("auto-review model applied", "endpoint", endpoint, "to", h.AutoReviewModel)
+		body = routed
 	}
 
-	_, respData, err := h.upstream.Do(r.Context(), upstream.Request{
+	req := upstream.Request{
 		Method:       r.Method,
 		Endpoint:     endpoint,
 		Body:         body,
 		QueryString:  r.URL.RawQuery,
+		Stream:       isStreamingRequest(body),
 		ExtraHeaders: collectForwardHeaders(r),
-	})
-	return respData, err
+	}
+	if req.Stream {
+		err := h.handleStreamingRequest(w, r, req)
+		var hse *headersSentError
+		if errors.As(err, &hse) {
+			// The status line is out; all that is left is to record why the stream ended.
+			upstream.LogRequestError("streaming response interrupted", err, "endpoint", endpoint)
+		} else if err != nil {
+			writeUpstreamFailure(w, "streaming request failed", err, "endpoint", endpoint)
+		}
+		return
+	}
+
+	_, respData, err := h.upstream.Do(r.Context(), req)
+	if err != nil {
+		writeUpstreamFailure(w, "passthrough request failed", err, "endpoint", endpoint)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.Write(respData)
+}
+
+// writeUpstreamFailure forwards an upstream error response as-is, answers a
+// lost GitHub authorization with its 403, and reports anything else (the
+// upstream could not be reached) as a retryable 502.
+func writeUpstreamFailure(w http.ResponseWriter, msg string, err error, logArgs ...any) {
+	var upstreamErr *upstream.UpstreamError
+	if errors.As(err, &upstreamErr) {
+		upstreamErr.WriteRawError(w)
+		return
+	}
+	if writeReauthRequired(w, err) {
+		return
+	}
+	upstream.LogRequestError(msg, err, logArgs...)
+	WriteOpenAIError(w, http.StatusBadGateway, OpenAIErrorTypeServerError, "Upstream request failed")
 }
 
 // collectForwardHeaders returns headers from the original request that should be
