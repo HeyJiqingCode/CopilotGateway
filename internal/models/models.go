@@ -67,7 +67,9 @@ func NewCache(upstreamClient *upstream.Client, ttl time.Duration) *Cache {
 func (c *Cache) Warm(ctx context.Context) {
 	if _, _, err := c.get(ctx); err != nil {
 		slog.Warn("failed to warm models cache", "error", err)
+		return
 	}
+	slog.Info("models cache warmed")
 }
 
 // GetRaw returns the raw JSON bytes of the /models response.

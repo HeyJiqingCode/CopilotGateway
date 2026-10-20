@@ -195,7 +195,6 @@ func main() {
 	go func() {
 		slog.Debug("warming models cache")
 		modelsCache.Warm(ctx)
-		slog.Info("models cache warmed")
 	}()
 
 	// Create server
