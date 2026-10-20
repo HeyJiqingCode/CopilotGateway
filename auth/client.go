@@ -2,7 +2,9 @@ package auth
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"io"
 	"log/slog"
 	"sync"
 	"time"
@@ -19,8 +21,8 @@ type Client struct {
 	startDeviceFlow   func() (*DeviceCodeResponse, error)
 	pollDeviceFlow    func(deviceCode string, interval int, timeout time.Duration) (string, error)
 
-	// pending is the background device flow started after the GitHub
-	// authorization was lost; guarded by refreshMu.
+	// pending is the background device flow started when no usable GitHub
+	// authorization exists; guarded by refreshMu.
 	pending *pendingDeviceFlow
 }
 
@@ -115,67 +117,21 @@ func (c *Client) GetBaseURL() string {
 	return DefaultBaseURL
 }
 
-// EnsureAuthenticated runs the interactive device flow if needed and verifies
-// that a valid Copilot token can be obtained. Call this at startup only.
-func (c *Client) EnsureAuthenticated(ctx context.Context) error {
-	if err := c.RunDeviceFlowIfNeeded(); err != nil {
-		return fmt.Errorf("device flow failed: %w", err)
+// Start gets the first Copilot token at startup without waiting for the user.
+// Without usable GitHub authorization it prints the sign-in prompt to out; the
+// device flow polls in the background and requests get a 403 carrying the same
+// code until the user signs in. Other failures keep the stored token and are
+// retried by the next request.
+func (c *Client) Start(ctx context.Context, out io.Writer) {
+	_, err := c.GetValidToken(ctx)
+	var reauth *ReauthRequiredError
+	if !errors.As(err, &reauth) || reauth.UserCode == "" {
+		return
 	}
-	if _, err := c.GetValidToken(ctx); err != nil {
-		return fmt.Errorf("failed to obtain valid token: %w", err)
-	}
-	return nil
-}
-
-// RunDeviceFlowIfNeeded performs the interactive OAuth device flow if no
-// valid GitHub token is stored. This must be called at startup — not during
-// request serving, since it blocks waiting for user interaction.
-func (c *Client) RunDeviceFlowIfNeeded() error {
-	c.mu.RLock()
-	hasGitHubToken := c.creds.GitHubToken != ""
-	c.mu.RUnlock()
-
-	if hasGitHubToken {
-		return nil // already have a token, refresh path will handle expiry
-	}
-
-	return c.performDeviceFlow()
-}
-
-func (c *Client) performDeviceFlow() error {
-	slog.Info("starting GitHub Device Flow OAuth")
-
-	// Step 1: Get device code
-	deviceResp, err := InitiateDeviceFlow()
-	if err != nil {
-		return fmt.Errorf("failed to initiate device flow: %w", err)
-	}
-
-	// Step 2: Display user code
-	fmt.Printf("\n🔐 GitHub Authentication Required\n")
-	fmt.Printf("Please visit: %s\n", deviceResp.VerificationURI)
-	fmt.Printf("Enter code: %s\n\n", deviceResp.UserCode)
-	fmt.Printf("Waiting for authorization...")
-
-	// Step 3: Poll for access token
-	timeout := time.Duration(deviceResp.ExpiresIn) * time.Second
-	accessToken, err := PollForAccessToken(deviceResp.DeviceCode, deviceResp.Interval, timeout)
-	if err != nil {
-		return fmt.Errorf("failed to get access token: %w", err)
-	}
-
-	fmt.Printf("\n✅ Authentication successful!\n\n")
-
-	c.mu.Lock()
-	c.creds.GitHubToken = accessToken
-	c.mu.Unlock()
-
-	// Get Copilot token
-	if err := c.refreshCopilotToken(); err != nil {
-		return fmt.Errorf("failed to get copilot token: %w", err)
-	}
-
-	return nil
+	fmt.Fprintf(out, "\n🔐 GitHub Authentication Required\n")
+	fmt.Fprintf(out, "Please visit: %s\n", reauth.VerificationURI)
+	fmt.Fprintf(out, "Enter code: %s\n\n", reauth.UserCode)
+	fmt.Fprintf(out, "Waiting for authorization in the background (code expires %s)...\n\n", reauth.ExpiresAt.UTC().Format("15:04 UTC"))
 }
 
 func (c *Client) refreshCopilotToken() error {

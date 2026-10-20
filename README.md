@@ -52,20 +52,19 @@ An API key is **required** for both ways — the gateway refuses to start withou
 echo "sk-cgw-$(openssl rand -hex 32)"
 ```
 
-On first run, the gateway asks for GitHub Device Flow authorization — visit the URL, enter the code, and you are done; credentials persist afterwards:
+On first run, the gateway asks for GitHub Device Flow authorization — visit the URL, enter the code, and you are done; credentials persist afterwards. The server starts right away, and until you sign in, API requests return a `403` carrying the same code (see [Lost GitHub Authorization](#lost-github-authorization)):
 
 ```
 🔐 GitHub Authentication Required
 Please visit: https://github.com/login/device
 Enter code: XXXX-XXXX
 
-Waiting for authorization...
-✅ Authentication successful!
+Waiting for authorization in the background (code expires 12:30 UTC)...
 ```
 
 ### Start with Docker
 
-Set the key via `COPILOTGW_API_KEY`. Since the container runs detached, the first-run device-flow prompt appears in `docker logs -f copilotgateway`.
+Set the key via `COPILOTGW_API_KEY`. Since the container runs detached, the first-run device-flow prompt appears in `docker logs -f copilotgateway` and in the `403` error your client shows.
 
 **1）Minimal** — API-only gateway:
 
@@ -116,13 +115,16 @@ COPILOTGW_WEB_PASSWORD=<your_web_password> \
 
 ### Lost GitHub Authorization
 
-If GitHub rejects the stored token while the gateway is running (for example, the app authorization was revoked), the gateway clears it and starts a new device flow in the background. Every API request then fails with a non-retryable `403` whose message carries the sign-in link and code, so Claude Code and Codex show it directly:
+Whenever there is no usable GitHub authorization — no stored token, or GitHub rejects it (for example, the app authorization was revoked) — the gateway clears it and starts a device flow in the background, at startup or while running. Every API request then fails with a non-retryable `403` whose message carries the sign-in link and code, so Claude Code and Codex show it directly:
 
 ```
-GitHub Copilot authorization lost. Visit https://github.com/login/device and enter code ABCD-1234 (expires 12:30 UTC) to restore the gateway.
+GitHub Copilot authorization required. Visit https://github.com/login/device and enter code ABCD-1234 (expires 12:30 UTC) to authorize the gateway.
 ```
 
-Enter the code and the gateway recovers without a restart. The same code is also written to the logs; if it expires unused, the next request starts a new one.
+Enter the code and the gateway recovers without a restart. The same code is also written to the logs; if it expires unused, the next request starts a new one. Network errors and GitHub outages keep the stored token and return a retryable error instead.
+
+![CopilotGateway GHCP Auth](./assets/ghcp-auth-1.png)
+![CopilotGateway GHCP Auth](./assets/ghcp-auth-2.png)
 
 ## Configuration
 

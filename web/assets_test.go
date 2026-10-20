@@ -101,7 +101,7 @@ func TestModelsRefreshEndpoint(t *testing.T) {
 // The dashboard shows this message under its own localized title, so it must
 // be the upstream error itself, not a fixed-language prefix.
 func TestModelsErrorReturnsUpstreamMessage(t *testing.T) {
-	mux := newTestMux(t, stubModels{err: errors.New("GitHub Copilot authorization lost")})
+	mux := newTestMux(t, stubModels{err: errors.New("GitHub Copilot authorization required")})
 	c := doLogin(t, mux, "admin", "pass123")
 	req := httptest.NewRequest(http.MethodGet, "/web/api/models", nil)
 	req.AddCookie(c)
@@ -114,7 +114,7 @@ func TestModelsErrorReturnsUpstreamMessage(t *testing.T) {
 	if err := json.Unmarshal(rec.Body.Bytes(), &got); err != nil {
 		t.Fatal(err)
 	}
-	if rec.Code != http.StatusBadGateway || got.Error != "GitHub Copilot authorization lost" {
+	if rec.Code != http.StatusBadGateway || got.Error != "GitHub Copilot authorization required" {
 		t.Fatalf("status = %d, error = %q; want 502 with the upstream message only", rec.Code, got.Error)
 	}
 }

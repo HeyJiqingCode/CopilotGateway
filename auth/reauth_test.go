@@ -16,7 +16,10 @@ func newTestClient(t *testing.T, githubToken string) *Client {
 		t.Fatalf("NewClient: %v", err)
 	}
 	c.creds.GitHubToken = githubToken
-	// Never reach GitHub from tests; device-flow tests install a fake.
+	// Never reach GitHub from tests; tests that need these steps install fakes.
+	c.fetchCopilotToken = func(string) (*CopilotToken, error) {
+		return nil, errors.New("copilot token fetch disabled in tests")
+	}
 	c.startDeviceFlow = func() (*DeviceCodeResponse, error) {
 		return nil, errors.New("device flow disabled in tests")
 	}
@@ -75,7 +78,17 @@ func TestReauthRequiredError_MessageCarriesDeviceCode(t *testing.T) {
 		ExpiresAt:       time.Date(2026, 10, 19, 12, 30, 0, 0, time.UTC),
 	}
 
-	want := "GitHub Copilot authorization lost. Visit https://github.com/login/device and enter code ABCD-1234 (expires 12:30 UTC) to restore the gateway."
+	want := "GitHub Copilot authorization required. Visit https://github.com/login/device and enter code ABCD-1234 (expires 12:30 UTC) to authorize the gateway."
+	if got := err.Error(); got != want {
+		t.Fatalf("Error() = %q, want %q", got, want)
+	}
+}
+
+func TestReauthRequiredError_WithoutCodeAsksForAnotherRequest(t *testing.T) {
+	// The next request starts a new device flow, so a restart is never needed.
+	err := &ReauthRequiredError{Cause: errors.New("device code request failed with status 503")}
+
+	want := "GitHub Copilot authorization required. Send another request to get a sign-in code. Device flow could not start: device code request failed with status 503"
 	if got := err.Error(); got != want {
 		t.Fatalf("Error() = %q, want %q", got, want)
 	}

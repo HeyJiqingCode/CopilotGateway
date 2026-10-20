@@ -142,13 +142,11 @@ func main() {
 		os.Exit(1)
 	}
 
-	// Ensure we're authenticated before starting the server. This runs the
-	// interactive device flow if needed and verifies a valid Copilot token.
+	// Get the first Copilot token without blocking on sign-in. Without usable
+	// GitHub authorization the device-flow prompt is printed and the server
+	// still starts, answering API requests with a 403 carrying the same code.
 	ctx := context.Background()
-	if err := authClient.EnsureAuthenticated(ctx); err != nil {
-		slog.Error("authentication failed", "error", err)
-		os.Exit(1)
-	}
+	authClient.Start(ctx, os.Stdout)
 
 	// Shared HTTP transport for all upstream requests
 	transport := upstream.NewTransport()

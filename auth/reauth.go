@@ -8,7 +8,7 @@ import (
 
 // ReauthRequiredError reports that the stored GitHub authorization is gone
 // (missing or rejected), so no Copilot token can be issued until the user
-// signs in again. Handlers turn it into a non-retryable 403.
+// signs in. Handlers turn it into a non-retryable 403.
 type ReauthRequiredError struct {
 	VerificationURI string
 	UserCode        string
@@ -19,10 +19,10 @@ type ReauthRequiredError struct {
 
 func (e *ReauthRequiredError) Error() string {
 	if e.UserCode != "" {
-		return fmt.Sprintf("GitHub Copilot authorization lost. Visit %s and enter code %s (expires %s) to restore the gateway.",
+		return fmt.Sprintf("GitHub Copilot authorization required. Visit %s and enter code %s (expires %s) to authorize the gateway.",
 			e.VerificationURI, e.UserCode, e.ExpiresAt.UTC().Format("15:04 UTC"))
 	}
-	msg := "GitHub Copilot authorization lost. Restart the gateway to sign in again."
+	msg := "GitHub Copilot authorization required. Send another request to get a sign-in code."
 	if e.Cause != nil {
 		msg += " Device flow could not start: " + e.Cause.Error()
 	}
@@ -50,12 +50,12 @@ func (c *Client) reauthRequired() *ReauthRequiredError {
 
 	resp, err := c.startDeviceFlow()
 	if err != nil {
-		slog.Error("failed to start device flow for lost GitHub authorization", "error", err)
+		slog.Error("failed to start device flow for GitHub sign-in", "error", err)
 		return &ReauthRequiredError{Cause: err}
 	}
 	p := &pendingDeviceFlow{resp: resp, expiresAt: time.Now().Add(time.Duration(resp.ExpiresIn) * time.Second)}
 	c.pending = p
-	slog.Warn("GitHub authorization lost; waiting for device flow sign-in",
+	slog.Warn("GitHub authorization required; waiting for device flow sign-in",
 		"verification_uri", resp.VerificationURI, "user_code", resp.UserCode, "expires_at", p.expiresAt)
 	go c.awaitDeviceFlow(p)
 	return p.reauthError()
@@ -84,5 +84,5 @@ func (c *Client) awaitDeviceFlow(p *pendingDeviceFlow) {
 		slog.Error("failed to get copilot token after device flow sign-in", "error", err)
 		return
 	}
-	slog.Info("GitHub authorization restored")
+	slog.Info("GitHub authorization completed")
 }
