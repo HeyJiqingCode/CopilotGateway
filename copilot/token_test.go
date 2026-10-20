@@ -1,0 +1,134 @@
+package copilot
+
+import (
+	"errors"
+	"fmt"
+	"net/http"
+	"testing"
+	"time"
+)
+
+func TestExtractBaseURLFromToken(t *testing.T) {
+	tests := []struct {
+		name     string
+		token    string
+		expected string
+	}{
+		{
+			name:     "valid token with proxy-ep",
+			token:    "tid=123;exp=456;sku=copilot;proxy-ep=proxy.individual.githubcopilot.com;other=value",
+			expected: "https://api.individual.githubcopilot.com",
+		},
+		{
+			name:     "token with different proxy-ep",
+			token:    "tid=abc;proxy-ep=proxy.enterprise.githubcopilot.com;exp=789",
+			expected: "https://api.enterprise.githubcopilot.com",
+		},
+		{
+			name:     "token without proxy-ep",
+			token:    "tid=123;exp=456;sku=copilot;other=value",
+			expected: DefaultBaseURL,
+		},
+		{
+			name:     "empty token",
+			token:    "",
+			expected: DefaultBaseURL,
+		},
+		{
+			name:     "malformed token",
+			token:    "invalid-token-format",
+			expected: DefaultBaseURL,
+		},
+		{
+			name:     "proxy-ep without proxy prefix",
+			token:    "tid=123;proxy-ep=individual.githubcopilot.com;exp=456",
+			expected: DefaultBaseURL,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := ExtractBaseURLFromToken(tt.token)
+			if result != tt.expected {
+				t.Errorf("ExtractBaseURLFromToken(%q) = %q, want %q", tt.token, result, tt.expected)
+			}
+		})
+	}
+}
+
+func TestIsAuthStatusError(t *testing.T) {
+	tests := []struct {
+		name string
+		err  error
+		want bool
+	}{
+		{name: "401", err: &TokenStatusError{StatusCode: http.StatusUnauthorized}, want: true},
+		{name: "403", err: &TokenStatusError{StatusCode: http.StatusForbidden}, want: true},
+		{name: "500", err: &TokenStatusError{StatusCode: http.StatusInternalServerError}, want: false},
+		{name: "wrapped 401", err: fmt.Errorf("refresh: %w", &TokenStatusError{StatusCode: http.StatusUnauthorized}), want: true},
+		{name: "other error", err: errors.New("dial tcp: i/o timeout"), want: false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := IsAuthStatusError(tt.err); got != tt.want {
+				t.Fatalf("IsAuthStatusError() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestCopilotToken_IsTokenUsable(t *testing.T) {
+	tests := []struct {
+		name     string
+		token    *Token
+		expected bool
+	}{
+		{
+			name:     "nil token",
+			token:    nil,
+			expected: false,
+		},
+		{
+			name: "empty token string",
+			token: &Token{
+				Token:     "",
+				ExpiresAt: time.Now().Add(10 * time.Minute),
+			},
+			expected: false,
+		},
+		{
+			name: "token expiring in 10 minutes (usable)",
+			token: &Token{
+				Token:     "valid-token",
+				ExpiresAt: time.Now().Add(10 * time.Minute),
+			},
+			expected: true,
+		},
+		{
+			name: "token expiring in 3 minutes (not usable)",
+			token: &Token{
+				Token:     "valid-token",
+				ExpiresAt: time.Now().Add(3 * time.Minute),
+			},
+			expected: false,
+		},
+		{
+			name: "expired token",
+			token: &Token{
+				Token:     "valid-token",
+				ExpiresAt: time.Now().Add(-1 * time.Minute),
+			},
+			expected: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := tt.token.IsTokenUsable()
+			if result != tt.expected {
+				t.Errorf("IsTokenUsable() = %v, want %v", result, tt.expected)
+			}
+		})
+	}
+}

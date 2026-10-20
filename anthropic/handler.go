@@ -1,3 +1,5 @@
+// Package anthropic serves the Anthropic Messages API (/v1/messages) on top
+// of Copilot's native /v1/messages endpoint.
 package anthropic
 
 import (
@@ -11,20 +13,17 @@ import (
 	"strings"
 	"time"
 
-	"github.com/HeyJiqingCode/CopilotGateway/auth"
-	"github.com/HeyJiqingCode/CopilotGateway/internal/models"
-	"github.com/HeyJiqingCode/CopilotGateway/internal/sse"
-	"github.com/HeyJiqingCode/CopilotGateway/internal/upstream"
+	"github.com/HeyJiqingCode/CopilotGateway/copilot"
 )
 
 // Handler handles Anthropic Messages API requests
 type Handler struct {
-	upstream *upstream.Client
-	models   *models.Cache
+	upstream *copilot.Client
+	models   *copilot.Models
 }
 
 // NewHandler creates a new Anthropic handler.
-func NewHandler(uc *upstream.Client, mc *models.Cache) *Handler {
+func NewHandler(uc *copilot.Client, mc *copilot.Models) *Handler {
 	return &Handler{upstream: uc, models: mc}
 }
 
@@ -33,29 +32,29 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
 
 	if r.Method != "POST" {
-		WriteAnthropicError(w, http.StatusMethodNotAllowed, AnthropicErrorTypeInvalidRequest, "Method not allowed")
+		writeError(w, http.StatusMethodNotAllowed, errTypeInvalidRequest, "Method not allowed")
 		return
 	}
 
-	r.Body = http.MaxBytesReader(w, r.Body, upstream.MaxRequestBody) // Shared gateway HTTP body byte limit.
+	r.Body = http.MaxBytesReader(w, r.Body, copilot.MaxRequestBody) // Shared gateway HTTP body byte limit.
 	reqBody, err := io.ReadAll(r.Body)
 	if err != nil {
 		var limitErr *http.MaxBytesError
 		if errors.As(err, &limitErr) {
-			WriteAnthropicError(w, http.StatusRequestEntityTooLarge, AnthropicErrorTypeInvalidRequest, upstream.RequestBodyTooLargeMessage())
+			writeError(w, http.StatusRequestEntityTooLarge, errTypeInvalidRequest, copilot.RequestBodyTooLargeMessage())
 			return
 		}
-		WriteAnthropicError(w, http.StatusBadRequest, AnthropicErrorTypeInvalidRequest, fmt.Sprintf("Invalid request body: %v", err))
+		writeError(w, http.StatusBadRequest, errTypeInvalidRequest, fmt.Sprintf("Invalid request body: %v", err))
 		return
 	}
 
 	req, err := parseMessagesRequest(reqBody)
 	if err != nil {
-		WriteAnthropicError(w, http.StatusBadRequest, AnthropicErrorTypeInvalidRequest, fmt.Sprintf("Invalid JSON: %v", err))
+		writeError(w, http.StatusBadRequest, errTypeInvalidRequest, fmt.Sprintf("Invalid JSON: %v", err))
 		return
 	}
 	if err := req.validate(); err != nil {
-		WriteAnthropicError(w, http.StatusBadRequest, AnthropicErrorTypeInvalidRequest, fmt.Sprintf("Invalid request: %v", err))
+		writeError(w, http.StatusBadRequest, errTypeInvalidRequest, fmt.Sprintf("Invalid request: %v", err))
 		return
 	}
 
@@ -74,14 +73,14 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	modelInfo := h.getModelInfo(r.Context(), model)
 
 	// 仅当模型确定不支持 reasoning effort 且客户端确实发了 output_config/thinking 时才剥离。
-	dropReasoning := (req.has("output_config") || req.has("thinking")) && !models.SupportsReasoningEffort(modelInfo)
+	dropReasoning := (req.has("output_config") || req.has("thinking")) && !copilot.SupportsReasoningEffort(modelInfo)
 	// 客户端的 anthropic-beta 原样转发;上游仅在带 context-management beta 时接受 context_management。
 	betas := strings.Join(r.Header.Values("anthropic-beta"), ",")
 	dropContextManagement := req.has("context_management") && !hasContextManagementBeta(betas)
 
 	body, removedScopes, err := req.rewrite(rewriteOptions{model: model, dropContextManagement: dropContextManagement, dropReasoning: dropReasoning})
 	if err != nil {
-		WriteAnthropicError(w, http.StatusBadRequest, AnthropicErrorTypeInvalidRequest, fmt.Sprintf("Invalid JSON: %v", err))
+		writeError(w, http.StatusBadRequest, errTypeInvalidRequest, fmt.Sprintf("Invalid JSON: %v", err))
 		return
 	}
 	if slog.Default().Enabled(r.Context(), slog.LevelDebug) { // keys() allocates and sorts
@@ -103,7 +102,7 @@ func hasContextManagementBeta(betas string) bool {
 }
 
 func (h *Handler) handleNativeMessagesPassthrough(w http.ResponseWriter, r *http.Request, body []byte, stream bool, betas string) {
-	req := upstream.Request{Endpoint: "/v1/messages", Body: body, Stream: stream, QueryString: r.URL.RawQuery}
+	req := copilot.Request{Endpoint: "/v1/messages", Body: body, Stream: stream, QueryString: r.URL.RawQuery}
 	if betas != "" {
 		req.ExtraHeaders = map[string]string{"anthropic-beta": betas}
 	}
@@ -120,7 +119,7 @@ func (h *Handler) handleNativeMessagesPassthrough(w http.ResponseWriter, r *http
 
 	flusher, ok := w.(http.Flusher)
 	if !ok {
-		WriteAnthropicError(w, http.StatusInternalServerError, AnthropicErrorTypeAPI, "Streaming unsupported")
+		writeError(w, http.StatusInternalServerError, errTypeAPI, "Streaming unsupported")
 		return
 	}
 	resp, _, err := h.upstream.Do(r.Context(), req)
@@ -130,7 +129,9 @@ func (h *Handler) handleNativeMessagesPassthrough(w http.ResponseWriter, r *http
 	}
 	defer resp.Body.Close()
 
-	sse.BeginSSE(w)
+	w.Header().Set("Content-Type", "text/event-stream")
+	w.Header().Set("Cache-Control", "no-cache")
+	w.Header().Set("Connection", "keep-alive")
 	reader := bufio.NewReaderSize(resp.Body, 32*1024)
 	for {
 		line, err := reader.ReadBytes('\n')
@@ -160,7 +161,7 @@ func (h *Handler) handleNativeMessagesPassthrough(w http.ResponseWriter, r *http
 // lost GitHub authorization with its 403, and reports anything else (the
 // upstream could not be reached) as a retryable 502.
 func writeUpstreamFailure(w http.ResponseWriter, msg string, err error) {
-	var upstreamErr *upstream.UpstreamError
+	var upstreamErr *copilot.UpstreamError
 	if errors.As(err, &upstreamErr) {
 		upstreamErr.WriteRawError(w)
 		return
@@ -168,8 +169,8 @@ func writeUpstreamFailure(w http.ResponseWriter, msg string, err error) {
 	if writeReauthRequired(w, err) {
 		return
 	}
-	upstream.LogRequestError(msg, err)
-	WriteAnthropicError(w, http.StatusBadGateway, AnthropicErrorTypeAPI, "Upstream request failed")
+	copilot.LogRequestError(msg, err)
+	writeError(w, http.StatusBadGateway, errTypeAPI, "Upstream request failed")
 }
 
 // isBlankSSELine reports whether line consists solely of newline characters
@@ -187,22 +188,22 @@ func isBlankSSELine(line []byte) bool {
 // writeReauthRequired answers a lost GitHub authorization with a 403
 // permission_error that clients do not retry, carrying the sign-in instructions.
 func writeReauthRequired(w http.ResponseWriter, err error) bool {
-	var reauth *auth.ReauthRequiredError
+	var reauth *copilot.ReauthRequiredError
 	if !errors.As(err, &reauth) {
 		return false
 	}
-	WriteAnthropicError(w, http.StatusForbidden, AnthropicErrorTypePermission, reauth.Error())
+	writeError(w, http.StatusForbidden, errTypePermission, reauth.Error())
 	return true
 }
 
-// WriteAnthropicError writes an error response in Anthropic API format
-func WriteAnthropicError(w http.ResponseWriter, statusCode int, errorType string, message string) {
+// writeError writes an error response in Anthropic API format
+func writeError(w http.ResponseWriter, statusCode int, errorType string, message string) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(statusCode)
 
-	errorResp := AnthropicErrorResponse{
+	errorResp := errorResponse{
 		Type: "error",
-		Error: AnthropicError{
+		Error: errorDetail{
 			Type:    errorType,
 			Message: message,
 		},

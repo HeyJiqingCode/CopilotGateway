@@ -10,16 +10,14 @@ import (
 	"testing"
 	"time"
 
-	"github.com/HeyJiqingCode/CopilotGateway/auth"
-	"github.com/HeyJiqingCode/CopilotGateway/internal/models"
-	"github.com/HeyJiqingCode/CopilotGateway/internal/testutil"
-	"github.com/HeyJiqingCode/CopilotGateway/internal/upstream"
+	"github.com/HeyJiqingCode/CopilotGateway/copilot"
+	"github.com/HeyJiqingCode/CopilotGateway/testutil"
 )
 
 func TestReauthRequired_Returns403WithDeviceCode(t *testing.T) {
-	uc := upstream.NewClient(testutil.TokenProvider{Err: &auth.ReauthRequiredError{
+	uc := copilot.NewClient(testutil.TokenProvider{Err: &copilot.ReauthRequiredError{
 		VerificationURI: "https://github.com/login/device", UserCode: "ABCD-1234", ExpiresAt: time.Now().Add(15 * time.Minute)}}, nil)
-	h := &Handler{upstream: uc, models: models.NewCache(uc, 5*time.Minute)}
+	h := &Handler{upstream: uc, models: copilot.NewModels(uc, 5*time.Minute)}
 
 	for _, stream := range []bool{false, true} {
 		body := `{"model":"claude-opus-5.5","max_tokens":16,"messages":[{"role":"user","content":"hi"}],"stream":` + map[bool]string{false: "false", true: "true"}[stream] + `}`
@@ -38,11 +36,11 @@ func TestReauthRequired_Returns403WithDeviceCode(t *testing.T) {
 		if rec.Code != http.StatusForbidden {
 			t.Fatalf("stream=%v: status = %d, want 403; body: %s", stream, rec.Code, rec.Body.String())
 		}
-		var resp AnthropicErrorResponse
+		var resp errorResponse
 		if err := json.Unmarshal(rec.Body.Bytes(), &resp); err != nil {
 			t.Fatalf("stream=%v: body is not an Anthropic error: %v (%s)", stream, err, rec.Body.String())
 		}
-		if resp.Error.Type != AnthropicErrorTypePermission || !strings.Contains(resp.Error.Message, "ABCD-1234") {
+		if resp.Error.Type != errTypePermission || !strings.Contains(resp.Error.Message, "ABCD-1234") {
 			t.Fatalf("stream=%v: error = %+v, want permission_error with the device code", stream, resp.Error)
 		}
 	}

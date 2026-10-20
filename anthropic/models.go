@@ -6,8 +6,7 @@ import (
 	"log/slog"
 	"regexp"
 
-	"github.com/HeyJiqingCode/CopilotGateway/auth"
-	"github.com/HeyJiqingCode/CopilotGateway/internal/models"
+	"github.com/HeyJiqingCode/CopilotGateway/copilot"
 )
 
 // modelAliases maps model name variants to their Copilot equivalents.
@@ -50,11 +49,11 @@ func resolveModelAlias(modelID string) string {
 
 // getModelInfo returns the catalog entry for an already resolved model ID, or
 // nil when the model is unknown or the catalog cannot be fetched.
-func (h *Handler) getModelInfo(ctx context.Context, modelID string) *models.Info {
+func (h *Handler) getModelInfo(ctx context.Context, modelID string) *copilot.ModelInfo {
 	infoMap, err := h.models.GetInfo(ctx)
 	if err != nil {
 		// A pending sign-in is answered with its 403 right after; not worth a warning.
-		if !errors.As(err, new(*auth.ReauthRequiredError)) {
+		if !errors.As(err, new(*copilot.ReauthRequiredError)) {
 			slog.Warn("failed to fetch models for capability detection", "error", err)
 		}
 		return nil

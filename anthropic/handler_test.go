@@ -9,9 +9,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/HeyJiqingCode/CopilotGateway/internal/models"
-	"github.com/HeyJiqingCode/CopilotGateway/internal/testutil"
-	"github.com/HeyJiqingCode/CopilotGateway/internal/upstream"
+	"github.com/HeyJiqingCode/CopilotGateway/copilot"
+	"github.com/HeyJiqingCode/CopilotGateway/testutil"
 )
 
 // TestServeHTTP_UnreachableUpstreamReturns502 checks that a transport failure
@@ -24,19 +23,19 @@ func TestServeHTTP_UnreachableUpstreamReturns502(t *testing.T) {
 	}
 	addr := ln.Addr().String()
 	ln.Close()
-	uc := upstream.NewClient(testutil.TokenProvider{BaseURL: "http://" + addr}, nil)
-	h := NewHandler(uc, models.NewCache(uc, time.Minute))
+	uc := copilot.NewClient(testutil.TokenProvider{BaseURL: "http://" + addr}, nil)
+	h := NewHandler(uc, copilot.NewModels(uc, time.Minute))
 
 	for _, stream := range []string{"false", "true"} {
 		body := `{"model":"claude-opus-5.5","max_tokens":16,"stream":` + stream + `,"messages":[{"role":"user","content":"hi"}]}`
 		rec := httptest.NewRecorder()
 		h.ServeHTTP(rec, httptest.NewRequest("POST", "/v1/messages", strings.NewReader(body)))
 
-		var resp AnthropicErrorResponse
+		var resp errorResponse
 		if err := json.Unmarshal(rec.Body.Bytes(), &resp); err != nil {
 			t.Fatalf("stream=%s: body is not JSON: %v (%q)", stream, err, rec.Body.String())
 		}
-		if rec.Code != http.StatusBadGateway || resp.Error.Type != AnthropicErrorTypeAPI {
+		if rec.Code != http.StatusBadGateway || resp.Error.Type != errTypeAPI {
 			t.Errorf("stream=%s: status = %d, error = %+v; want 502 api_error", stream, rec.Code, resp.Error)
 		}
 	}

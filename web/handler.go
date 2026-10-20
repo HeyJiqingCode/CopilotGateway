@@ -40,7 +40,7 @@ func ConfigFromEnv() (Config, bool) {
 	return Config{Username: username, Password: password, SessionHours: hours}, true
 }
 
-// ModelsSource 是数据端点所需的最小数据源接口(*models.Cache 满足)。
+// ModelsSource 是数据端点所需的最小数据源接口(*copilot.Models 满足)。
 type ModelsSource interface {
 	GetRaw(ctx context.Context) ([]byte, error)
 	CachedAt() time.Time

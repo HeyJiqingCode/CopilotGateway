@@ -11,9 +11,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/HeyJiqingCode/CopilotGateway/internal/models"
-	"github.com/HeyJiqingCode/CopilotGateway/internal/testutil"
-	"github.com/HeyJiqingCode/CopilotGateway/internal/upstream"
+	"github.com/HeyJiqingCode/CopilotGateway/copilot"
+	"github.com/HeyJiqingCode/CopilotGateway/testutil"
 )
 
 func TestServeHTTP_KeepsLargeIntegersExact(t *testing.T) {
@@ -70,9 +69,9 @@ func TestServeHTTP_RejectsInvalidRequests(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			rec, _ := serveNativeMessages(t, tc.body)
-			var resp AnthropicErrorResponse
+			var resp errorResponse
 			_ = json.Unmarshal(rec.Body.Bytes(), &resp)
-			if rec.Code != http.StatusBadRequest || resp.Error.Type != AnthropicErrorTypeInvalidRequest || !strings.HasPrefix(resp.Error.Message, tc.want) {
+			if rec.Code != http.StatusBadRequest || resp.Error.Type != errTypeInvalidRequest || !strings.HasPrefix(resp.Error.Message, tc.want) {
 				t.Fatalf("status = %d, error = %+v; want 400 invalid_request_error starting with %q", rec.Code, resp.Error, tc.want)
 			}
 		})
@@ -136,8 +135,8 @@ func BenchmarkServeHTTPLongSession(b *testing.B) {
 		w.Write([]byte(`{}`))
 	}))
 	defer fakeUpstream.Close()
-	uc := upstream.NewClient(testutil.TokenProvider{BaseURL: fakeUpstream.URL}, nil)
-	h := &Handler{upstream: uc, models: models.NewCache(uc, time.Hour)}
+	uc := copilot.NewClient(testutil.TokenProvider{BaseURL: fakeUpstream.URL}, nil)
+	h := &Handler{upstream: uc, models: copilot.NewModels(uc, time.Hour)}
 
 	defer slog.SetDefault(slog.Default())
 	slog.SetDefault(slog.New(slog.NewTextHandler(io.Discard, nil)))

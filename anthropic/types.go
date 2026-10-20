@@ -1,20 +1,20 @@
 package anthropic
 
-// AnthropicErrorResponse represents an error response from the Anthropic API
-type AnthropicErrorResponse struct {
-	Type  string         `json:"type"` // "error"
-	Error AnthropicError `json:"error"`
+// errorResponse represents an error response from the Anthropic API
+type errorResponse struct {
+	Type  string      `json:"type"` // "error"
+	Error errorDetail `json:"error"`
 }
 
-// AnthropicError represents the error object in Anthropic API responses
-type AnthropicError struct {
+// errorDetail represents the error object in Anthropic API responses
+type errorDetail struct {
 	Type    string `json:"type"`    // error type (required)
 	Message string `json:"message"` // error message (required)
 }
 
 // Error type constants for Anthropic API
 const (
-	AnthropicErrorTypeInvalidRequest = "invalid_request_error"
-	AnthropicErrorTypePermission     = "permission_error"
-	AnthropicErrorTypeAPI            = "api_error"
+	errTypeInvalidRequest = "invalid_request_error"
+	errTypePermission     = "permission_error"
+	errTypeAPI            = "api_error"
 )

@@ -14,11 +14,8 @@ import (
 	"time"
 
 	"github.com/HeyJiqingCode/CopilotGateway/anthropic"
-	"github.com/HeyJiqingCode/CopilotGateway/auth"
-	"github.com/HeyJiqingCode/CopilotGateway/internal/copilot"
-	"github.com/HeyJiqingCode/CopilotGateway/internal/models"
-	"github.com/HeyJiqingCode/CopilotGateway/internal/upstream"
-	"github.com/HeyJiqingCode/CopilotGateway/proxy"
+	"github.com/HeyJiqingCode/CopilotGateway/copilot"
+	"github.com/HeyJiqingCode/CopilotGateway/openai"
 	"github.com/HeyJiqingCode/CopilotGateway/web"
 )
 
@@ -45,7 +42,7 @@ func main() {
 	copilot.ConfigureFromEnv()
 
 	// 强制鉴权:必须配置至少一个 API key,否则拒绝启动(避免公网开放代理)
-	apiKeys := auth.ParseAPIKeys(cfg.apiKey)
+	apiKeys := parseAPIKeys(cfg.apiKey)
 	if len(apiKeys) == 0 {
 		fmt.Fprintln(os.Stderr, "error: an API key is required. Set COPILOTGW_API_KEY (or -api-key), comma-separated for multiple.")
 		os.Exit(1)
@@ -72,8 +69,8 @@ func main() {
 		tokenDir = filepath.Join(homeDir, ".config", "copilotgateway")
 	}
 
-	// Initialize auth client
-	authClient, err := auth.NewClient(tokenDir)
+	// GitHub sign-in and the Copilot token
+	authClient, err := copilot.NewAuth(tokenDir)
 	if err != nil {
 		slog.Error("failed to initialize auth client", "error", err)
 		os.Exit(1)
@@ -87,13 +84,13 @@ func main() {
 
 	// One upstream client for every handler. Its transport negotiates HTTP/2,
 	// so concurrent streams share a Copilot connection.
-	upstreamClient := upstream.NewClient(authClient, upstream.NewTransport())
+	upstreamClient := copilot.NewClient(authClient, copilot.NewTransport())
 
 	// Shared models cache — a single fetch populates both raw JSON (for
 	// proxying GET /v1/models) and parsed model info (for capability detection).
-	modelsCache := models.NewCache(upstreamClient, 5*time.Minute)
+	modelsCache := copilot.NewModels(upstreamClient, 5*time.Minute)
 
-	proxyHandler := proxy.NewHandler(upstreamClient, modelsCache)
+	proxyHandler := openai.NewHandler(upstreamClient, modelsCache)
 	proxyHandler.DisableResponsesIDCompat = !cfg.responsesIDCompat
 	slog.Info("Responses output ID compatibility", "enabled", cfg.responsesIDCompat)
 	proxyHandler.AutoReviewModel = cfg.autoReviewModel
@@ -140,7 +137,7 @@ func main() {
 		// ReadTimeout would kill long-lived SSE streaming connections.
 		IdleTimeout: 120 * time.Second,
 		// 中间件链:最外层记录所有请求(含 401),再做 API key 鉴权,最后进 mux
-		Handler: logAllRequests(auth.APIKeyAuth(apiKeys, mux)),
+		Handler: logAllRequests(apiKeyAuth(apiKeys, mux)),
 	}
 
 	// Start server in goroutine

@@ -9,9 +9,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/HeyJiqingCode/CopilotGateway/internal/models"
-	"github.com/HeyJiqingCode/CopilotGateway/internal/testutil"
-	"github.com/HeyJiqingCode/CopilotGateway/internal/upstream"
+	"github.com/HeyJiqingCode/CopilotGateway/copilot"
+	"github.com/HeyJiqingCode/CopilotGateway/testutil"
 )
 
 type capturedRequest struct {
@@ -54,8 +53,8 @@ func serveNativeMessages(t *testing.T, body string, betas ...string) (*httptest.
 	}))
 	t.Cleanup(fakeUpstream.Close)
 
-	uc := upstream.NewClient(testutil.TokenProvider{BaseURL: fakeUpstream.URL}, nil)
-	h := &Handler{upstream: uc, models: models.NewCache(uc, 5*time.Minute)}
+	uc := copilot.NewClient(testutil.TokenProvider{BaseURL: fakeUpstream.URL}, nil)
+	h := &Handler{upstream: uc, models: copilot.NewModels(uc, 5*time.Minute)}
 
 	req := httptest.NewRequest("POST", "/v1/messages?beta=true", strings.NewReader(body))
 	for _, beta := range betas {
