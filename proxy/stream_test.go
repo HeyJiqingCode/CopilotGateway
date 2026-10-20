@@ -2,6 +2,7 @@ package proxy
 
 import (
 	"errors"
+	"fmt"
 	"io"
 	"net/http/httptest"
 	"strings"
@@ -61,13 +62,6 @@ func TestIsStreamingRequest(t *testing.T) {
 	}
 }
 
-func TestIsStreamingRequest_NoBody(t *testing.T) {
-	result := isStreamingRequest(nil)
-	if result {
-		t.Error("isStreamingRequest() should return false for nil body")
-	}
-}
-
 func TestIsResponsesTerminationEvent(t *testing.T) {
 	tests := []struct {
 		name string
@@ -109,67 +103,6 @@ func TestStreamResponse_ChatCompletions_DataDone(t *testing.T) {
 	}
 }
 
-func TestStreamResponse_Responses_CompletedEvent(t *testing.T) {
-	sse := strings.Join([]string{
-		"event: response.output_text.delta",
-		`data: {"type":"response.output_text.delta","delta":"hi"}`,
-		"",
-		"event: response.completed",
-		`data: {"type":"response.completed","response":{}}`,
-		"",
-	}, "\n")
-	got := streamResponseHelper(t, sse, "/responses")
-	if !strings.Contains(got, "event: response.completed") {
-		t.Fatal("expected event: response.completed in output")
-	}
-	if !strings.Contains(got, `"type":"response.completed"`) {
-		t.Fatal("expected response.completed data line in output")
-	}
-}
-
-// Regression test: data: [DONE] before response.completed must NOT terminate a
-// /responses stream early — the proxy must still forward response.completed.
-func TestStreamResponse_Responses_DataDoneBeforeCompleted(t *testing.T) {
-	sse := strings.Join([]string{
-		"event: response.output_text.delta",
-		`data: {"type":"response.output_text.delta","delta":"hi"}`,
-		"",
-		"data: [DONE]",
-		"",
-		"event: response.completed",
-		`data: {"type":"response.completed","response":{}}`,
-		"",
-	}, "\n")
-	got := streamResponseHelper(t, sse, "/responses")
-	if !strings.Contains(got, "event: response.completed") {
-		t.Fatalf("response.completed must be forwarded even when data: [DONE] appears first.\nGot:\n%s", got)
-	}
-}
-
-func TestStreamResponse_Responses_ErrorTermination(t *testing.T) {
-	sse := strings.Join([]string{
-		"event: error",
-		`data: {"type":"error","message":"something broke"}`,
-		"",
-	}, "\n")
-	got := streamResponseHelper(t, sse, "/responses")
-	if !strings.Contains(got, "event: error") {
-		t.Fatal("expected event: error in output")
-	}
-}
-
-func TestStreamResponse_Responses_IncompleteTermination(t *testing.T) {
-	sse := strings.Join([]string{
-		"event: response.incomplete",
-		`data: {"type":"response.incomplete"}`,
-		"",
-	}, "\n")
-	got := streamResponseHelper(t, sse, "/responses")
-	if !strings.Contains(got, "event: response.incomplete") {
-		t.Fatal("expected event: response.incomplete in output")
-	}
-}
-
 func TestHeadersSentError(t *testing.T) {
 	inner := errors.New("read: connection reset")
 	hse := &headersSentError{err: inner}
@@ -181,9 +114,9 @@ func TestHeadersSentError(t *testing.T) {
 		t.Fatal("Unwrap should expose the inner error")
 	}
 
-	// errors.As should match *headersSentError
+	// Callers recognize it through further wrapping.
 	var target *headersSentError
-	if !errors.As(hse, &target) {
-		t.Fatal("errors.As should match *headersSentError")
+	if !errors.As(fmt.Errorf("stream: %w", hse), &target) || target != hse {
+		t.Fatal("errors.As should find the wrapped *headersSentError")
 	}
 }

@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/HeyJiqingCode/CopilotGateway/internal/models"
+	"github.com/HeyJiqingCode/CopilotGateway/internal/testutil"
 	"github.com/HeyJiqingCode/CopilotGateway/internal/upstream"
 )
 
@@ -135,7 +136,7 @@ func BenchmarkServeHTTPLongSession(b *testing.B) {
 		w.Write([]byte(`{}`))
 	}))
 	defer fakeUpstream.Close()
-	uc := upstream.NewClient(&stubTokenProvider{baseURL: fakeUpstream.URL}, nil)
+	uc := upstream.NewClient(testutil.TokenProvider{BaseURL: fakeUpstream.URL}, nil)
 	h := &Handler{upstream: uc, models: models.NewCache(uc, time.Hour)}
 
 	defer slog.SetDefault(slog.Default())

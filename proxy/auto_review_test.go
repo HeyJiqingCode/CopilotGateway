@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/HeyJiqingCode/CopilotGateway/internal/models"
+	"github.com/HeyJiqingCode/CopilotGateway/internal/testutil"
 	"github.com/HeyJiqingCode/CopilotGateway/internal/upstream"
 )
 
@@ -23,8 +24,8 @@ func captureUpstream(t *testing.T, got *[]byte) *Handler {
 	}))
 	t.Cleanup(fakeUpstream.Close)
 
-	uc := upstream.NewClient(&stubTokenProvider{baseURL: fakeUpstream.URL}, nil)
-	return &Handler{upstream: uc, modelsCache: models.NewCache(uc, 5*time.Minute)}
+	uc := upstream.NewClient(testutil.TokenProvider{BaseURL: fakeUpstream.URL}, nil)
+	return NewHandler(uc, models.NewCache(uc, 5*time.Minute))
 }
 
 func postResponses(t *testing.T, handler *Handler, body string) {

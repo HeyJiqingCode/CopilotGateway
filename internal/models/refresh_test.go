@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/HeyJiqingCode/CopilotGateway/internal/testutil"
 	"github.com/HeyJiqingCode/CopilotGateway/internal/upstream"
 )
 
@@ -25,7 +26,7 @@ func countingCatalog(t *testing.T, calls *atomic.Int32, fail *atomic.Bool) *Cach
 		w.Write([]byte(`{"data":[{"id":"model-` + string(rune('0'+n)) + `"}]}`))
 	}))
 	t.Cleanup(srv.Close)
-	return NewCache(upstream.NewClient(&stubTokenProvider{baseURL: srv.URL}, nil), time.Hour)
+	return NewCache(upstream.NewClient(testutil.TokenProvider{BaseURL: srv.URL}, nil), time.Hour)
 }
 
 func TestCacheRefreshBypassesTTL(t *testing.T) {

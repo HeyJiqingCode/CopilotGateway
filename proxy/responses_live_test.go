@@ -14,6 +14,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/HeyJiqingCode/CopilotGateway/internal/testutil"
 	"github.com/HeyJiqingCode/CopilotGateway/internal/upstream"
 )
 
@@ -30,7 +31,7 @@ func TestResponsesIDs_LiveCopilotReplay(t *testing.T) {
 		t.Run(strings.TrimSpace(model), func(t *testing.T) {
 			ctx, cancel := context.WithTimeout(context.Background(), 4*time.Minute)
 			defer cancel()
-			uc := upstream.NewClient(liveResponsesToken{token: token, baseURL: baseURL}, nil)
+			uc := upstream.NewClient(testutil.TokenProvider{Token: token, BaseURL: baseURL}, nil)
 			user := map[string]interface{}{"role": "user", "content": "Find the smallest positive integer x with x modulo 7 = 3, modulo 11 = 5 and modulo 13 = 8. Check the congruences, then call diagnostic_ping."}
 			request := map[string]interface{}{
 				"model": strings.TrimSpace(model), "stream": true, "store": false,
@@ -169,8 +170,3 @@ func removeOutputIDs(event map[string]interface{}) {
 		}
 	}
 }
-
-type liveResponsesToken struct{ token, baseURL string }
-
-func (p liveResponsesToken) GetToken(context.Context) (string, error) { return p.token, nil }
-func (p liveResponsesToken) GetBaseURL() string                       { return p.baseURL }

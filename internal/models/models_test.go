@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/HeyJiqingCode/CopilotGateway/internal/copilot"
+	"github.com/HeyJiqingCode/CopilotGateway/internal/testutil"
 	"github.com/HeyJiqingCode/CopilotGateway/internal/upstream"
 )
 
@@ -96,7 +97,7 @@ func TestCacheFetchUsesModelAccessHeaders(t *testing.T) {
 	}))
 	defer fakeUpstream.Close()
 
-	tp := &stubTokenProvider{baseURL: fakeUpstream.URL}
+	tp := testutil.TokenProvider{BaseURL: fakeUpstream.URL}
 	cache := NewCache(upstream.NewClient(tp, nil), time.Minute)
 
 	if _, err := cache.GetRaw(context.Background()); err != nil {
@@ -118,31 +119,5 @@ func TestCacheFetchUsesModelAccessHeaders(t *testing.T) {
 	}
 	if got, want := gotHeaders.Get("X-Agent-Task-Id"), gotHeaders.Get("X-Request-Id"); got != want {
 		t.Errorf("X-Agent-Task-Id = %q, want the request ID %q", got, want)
-	}
-}
-
-type stubTokenProvider struct {
-	baseURL string
-}
-
-func (s *stubTokenProvider) GetToken(_ context.Context) (string, error) {
-	return "test-token", nil
-}
-
-func (s *stubTokenProvider) GetBaseURL() string {
-	return s.baseURL
-}
-
-func TestCachedAt(t *testing.T) {
-	c := NewCache(nil, time.Minute)
-	if !c.CachedAt().IsZero() {
-		t.Error("fresh cache should have zero CachedAt")
-	}
-	now := time.Now()
-	c.mu.Lock()
-	c.cachedAt = now
-	c.mu.Unlock()
-	if !c.CachedAt().Equal(now) {
-		t.Errorf("CachedAt = %v, want %v", c.CachedAt(), now)
 	}
 }

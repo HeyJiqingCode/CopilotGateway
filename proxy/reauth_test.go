@@ -2,7 +2,6 @@ package proxy
 
 import (
 	"bytes"
-	"context"
 	"encoding/json"
 	"log/slog"
 	"net/http"
@@ -13,19 +12,13 @@ import (
 
 	"github.com/HeyJiqingCode/CopilotGateway/auth"
 	"github.com/HeyJiqingCode/CopilotGateway/internal/models"
+	"github.com/HeyJiqingCode/CopilotGateway/internal/testutil"
 	"github.com/HeyJiqingCode/CopilotGateway/internal/upstream"
 )
 
-// reauthTokenProvider simulates a gateway whose GitHub authorization is gone.
-type reauthTokenProvider struct{}
-
-func (reauthTokenProvider) GetToken(context.Context) (string, error) {
-	return "", &auth.ReauthRequiredError{VerificationURI: "https://github.com/login/device", UserCode: "ABCD-1234", ExpiresAt: time.Now().Add(15 * time.Minute)}
-}
-func (reauthTokenProvider) GetBaseURL() string { return "http://127.0.0.1:1" }
-
 func TestReauthRequired_Returns403WithDeviceCode(t *testing.T) {
-	uc := upstream.NewClient(reauthTokenProvider{}, nil)
+	uc := upstream.NewClient(testutil.TokenProvider{Err: &auth.ReauthRequiredError{
+		VerificationURI: "https://github.com/login/device", UserCode: "ABCD-1234", ExpiresAt: time.Now().Add(15 * time.Minute)}}, nil)
 	handler := &Handler{upstream: uc, modelsCache: models.NewCache(uc, 5*time.Minute)}
 
 	for _, tc := range []struct{ name, method, path, body string }{

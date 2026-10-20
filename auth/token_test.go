@@ -2,6 +2,7 @@ package auth
 
 import (
 	"errors"
+	"fmt"
 	"net/http"
 	"testing"
 	"time"
@@ -64,7 +65,8 @@ func TestIsAuthStatusError(t *testing.T) {
 		{name: "401", err: &CopilotTokenStatusError{StatusCode: http.StatusUnauthorized}, want: true},
 		{name: "403", err: &CopilotTokenStatusError{StatusCode: http.StatusForbidden}, want: true},
 		{name: "500", err: &CopilotTokenStatusError{StatusCode: http.StatusInternalServerError}, want: false},
-		{name: "wrapped 401", err: errors.New("plain"), want: false},
+		{name: "wrapped 401", err: fmt.Errorf("refresh: %w", &CopilotTokenStatusError{StatusCode: http.StatusUnauthorized}), want: true},
+		{name: "other error", err: errors.New("dial tcp: i/o timeout"), want: false},
 	}
 
 	for _, tt := range tests {

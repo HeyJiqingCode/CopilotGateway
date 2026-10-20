@@ -2,7 +2,6 @@ package upstream_test
 
 import (
 	"bytes"
-	"context"
 	"crypto/sha256"
 	"encoding/json"
 	"fmt"
@@ -16,6 +15,7 @@ import (
 
 	"github.com/HeyJiqingCode/CopilotGateway/anthropic"
 	"github.com/HeyJiqingCode/CopilotGateway/internal/models"
+	"github.com/HeyJiqingCode/CopilotGateway/internal/testutil"
 	"github.com/HeyJiqingCode/CopilotGateway/internal/upstream"
 	"github.com/HeyJiqingCode/CopilotGateway/proxy"
 )
@@ -227,7 +227,7 @@ func bodyLimitHandler(t *testing.T, endpoint string, serve http.HandlerFunc) htt
 	t.Cleanup(server.Close)
 	transport := upstream.NewTransport()
 	t.Cleanup(transport.CloseIdleConnections)
-	provider := bodyLimitTokenProvider{baseURL: server.URL}
+	provider := testutil.TokenProvider{BaseURL: server.URL}
 	client := upstream.NewClient(provider, transport)
 	cache := models.NewCache(client, time.Minute)
 	if endpoint == "/v1/messages" {
@@ -235,11 +235,6 @@ func bodyLimitHandler(t *testing.T, endpoint string, serve http.HandlerFunc) htt
 	}
 	return proxy.NewHandler(client, cache)
 }
-
-type bodyLimitTokenProvider struct{ baseURL string }
-
-func (p bodyLimitTokenProvider) GetToken(context.Context) (string, error) { return "test-token", nil }
-func (p bodyLimitTokenProvider) GetBaseURL() string                       { return p.baseURL }
 
 type bodyReadError struct{}
 

@@ -15,6 +15,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/HeyJiqingCode/CopilotGateway/internal/testutil"
 	"github.com/HeyJiqingCode/CopilotGateway/internal/upstream"
 )
 
@@ -380,7 +381,7 @@ func TestResponsesIDs_HistoryToolContinuationAndRestart(t *testing.T) {
 	}))
 	defer fake.Close()
 	newHandler := func(disabled bool) *Handler {
-		return &Handler{upstream: upstream.NewClient(&stubTokenProvider{baseURL: fake.URL}, nil), DisableResponsesIDCompat: disabled}
+		return &Handler{upstream: upstream.NewClient(testutil.TokenProvider{BaseURL: fake.URL}, nil), DisableResponsesIDCompat: disabled}
 	}
 	h := newHandler(false)
 	w := httptest.NewRecorder()

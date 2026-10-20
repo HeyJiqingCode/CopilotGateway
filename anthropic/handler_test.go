@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/HeyJiqingCode/CopilotGateway/internal/models"
+	"github.com/HeyJiqingCode/CopilotGateway/internal/testutil"
 	"github.com/HeyJiqingCode/CopilotGateway/internal/upstream"
 )
 
@@ -23,7 +24,7 @@ func TestServeHTTP_UnreachableUpstreamReturns502(t *testing.T) {
 	}
 	addr := ln.Addr().String()
 	ln.Close()
-	uc := upstream.NewClient(&stubTokenProvider{baseURL: "http://" + addr}, nil)
+	uc := upstream.NewClient(testutil.TokenProvider{BaseURL: "http://" + addr}, nil)
 	h := NewHandler(uc, models.NewCache(uc, time.Minute))
 
 	for _, stream := range []string{"false", "true"} {

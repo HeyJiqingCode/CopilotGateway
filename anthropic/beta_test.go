@@ -1,7 +1,6 @@
 package anthropic
 
 import (
-	"context"
 	"encoding/json"
 	"io"
 	"net/http"
@@ -11,13 +10,9 @@ import (
 	"time"
 
 	"github.com/HeyJiqingCode/CopilotGateway/internal/models"
+	"github.com/HeyJiqingCode/CopilotGateway/internal/testutil"
 	"github.com/HeyJiqingCode/CopilotGateway/internal/upstream"
 )
-
-type stubTokenProvider struct{ baseURL string }
-
-func (s *stubTokenProvider) GetToken(context.Context) (string, error) { return "test-token", nil }
-func (s *stubTokenProvider) GetBaseURL() string                       { return s.baseURL }
 
 type capturedRequest struct {
 	header http.Header
@@ -59,7 +54,7 @@ func serveNativeMessages(t *testing.T, body string, betas ...string) (*httptest.
 	}))
 	t.Cleanup(fakeUpstream.Close)
 
-	uc := upstream.NewClient(&stubTokenProvider{baseURL: fakeUpstream.URL}, nil)
+	uc := upstream.NewClient(testutil.TokenProvider{BaseURL: fakeUpstream.URL}, nil)
 	h := &Handler{upstream: uc, models: models.NewCache(uc, 5*time.Minute)}
 
 	req := httptest.NewRequest("POST", "/v1/messages?beta=true", strings.NewReader(body))

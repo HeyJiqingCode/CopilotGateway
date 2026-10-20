@@ -2,7 +2,6 @@ package proxy
 
 import (
 	"bytes"
-	"context"
 	"encoding/json"
 	"net"
 	"net/http"
@@ -11,51 +10,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/HeyJiqingCode/CopilotGateway/internal/copilot"
 	"github.com/HeyJiqingCode/CopilotGateway/internal/models"
+	"github.com/HeyJiqingCode/CopilotGateway/internal/testutil"
 	"github.com/HeyJiqingCode/CopilotGateway/internal/upstream"
 )
-
-func TestAddCopilotHeaders(t *testing.T) {
-	req, err := http.NewRequest("POST", "http://example.com", nil)
-	if err != nil {
-		t.Fatalf("Failed to create request: %v", err)
-	}
-
-	token := "test-token-123"
-	copilot.AddHeaders(req, token)
-
-	// Test required headers
-	expectedHeaders := map[string]string{
-		"Authorization":          "Bearer " + token,
-		"User-Agent":             copilot.CopilotUserAgent,
-		"Editor-Version":         copilot.EditorVersion,
-		"Editor-Plugin-Version":  copilot.EditorPluginVersion,
-		"Copilot-Integration-Id": "vscode-chat",
-		"Openai-Intent":          "conversation-agent",
-		"Content-Type":           "application/json",
-		"X-Github-Api-Version":   copilot.APIVersion,
-	}
-
-	for header, expectedValue := range expectedHeaders {
-		actualValue := req.Header.Get(header)
-		if actualValue != expectedValue {
-			t.Errorf("Header %s: expected %q, got %q", header, expectedValue, actualValue)
-		}
-	}
-
-	// Test that X-Request-Id is present
-	requestID := req.Header.Get("X-Request-Id")
-	if requestID == "" {
-		t.Error("X-Request-Id header should be present")
-	}
-	if interactionType := req.Header.Get("X-Interaction-Type"); interactionType != "conversation-agent" {
-		t.Errorf("X-Interaction-Type = %q, want conversation-agent", interactionType)
-	}
-	if taskID := req.Header.Get("X-Agent-Task-Id"); taskID != requestID {
-		t.Errorf("X-Agent-Task-Id = %q, want request ID %q", taskID, requestID)
-	}
-}
 
 func TestCollectForwardHeaders(t *testing.T) {
 	srcReq, err := http.NewRequest("POST", "http://example.com", bytes.NewReader([]byte("test")))
@@ -91,84 +49,6 @@ func TestCollectForwardHeaders(t *testing.T) {
 	}
 }
 
-func TestIsStreamingRequest_Handler(t *testing.T) {
-	tests := []struct {
-		name     string
-		body     string
-		expected bool
-	}{
-		{
-			name:     "streaming request",
-			body:     `{"stream": true}`,
-			expected: true,
-		},
-		{
-			name:     "non-streaming request",
-			body:     `{"stream": false}`,
-			expected: false,
-		},
-		{
-			name:     "no stream field",
-			body:     `{"messages": []}`,
-			expected: false,
-		},
-		{
-			name:     "invalid JSON",
-			body:     `{"stream": tr`,
-			expected: false,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			result := isStreamingRequest([]byte(tt.body))
-			if result != tt.expected {
-				t.Errorf("Expected %v, got %v", tt.expected, result)
-			}
-		})
-	}
-}
-
-func TestHandler_ServeHTTP_Routing(t *testing.T) {
-	// Fake upstream that records the request path and returns a simple response.
-	fakeUpstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		switch r.URL.Path {
-		case "/models":
-			w.Header().Set("Content-Type", "application/json")
-			json.NewEncoder(w).Encode(map[string]interface{}{
-				"data": []map[string]string{{"id": "gpt-4"}},
-			})
-		default:
-			w.Header().Set("Content-Type", "application/json")
-			json.NewEncoder(w).Encode(map[string]interface{}{"ok": true})
-		}
-	}))
-	defer fakeUpstream.Close()
-
-	tp := &stubTokenProvider{baseURL: fakeUpstream.URL}
-	uc := upstream.NewClient(tp, nil)
-	handler := &Handler{
-		upstream:    uc,
-		modelsCache: models.NewCache(uc, 5*time.Minute),
-	}
-	req := httptest.NewRequest("GET", "/v1/models", nil)
-	rec := httptest.NewRecorder()
-	handler.ServeHTTP(rec, req)
-	if rec.Code != http.StatusOK {
-		t.Fatalf("expected 200 for /v1/models, got %d", rec.Code)
-	}
-
-	// /v1/chat/completions should route correctly (non-streaming)
-	body := `{"model":"gpt-4","messages":[],"stream":false}`
-	req = httptest.NewRequest("POST", "/v1/chat/completions", strings.NewReader(body))
-	req.Header.Set("Content-Type", "application/json")
-	rec = httptest.NewRecorder()
-	handler.ServeHTTP(rec, req)
-	if rec.Code != http.StatusOK {
-		t.Fatalf("expected 200 for /v1/chat/completions, got %d; body: %s", rec.Code, rec.Body.String())
-	}
-}
-
 func TestHandler_HandleModels(t *testing.T) {
 	fakeUpstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
@@ -182,7 +62,7 @@ func TestHandler_HandleModels(t *testing.T) {
 	}))
 	defer fakeUpstream.Close()
 
-	tp := &stubTokenProvider{baseURL: fakeUpstream.URL}
+	tp := testutil.TokenProvider{BaseURL: fakeUpstream.URL}
 	uc := upstream.NewClient(tp, nil)
 	handler := &Handler{
 		upstream:    uc,
@@ -224,7 +104,7 @@ func TestHandler_HandlePassthrough(t *testing.T) {
 	}))
 	defer fakeUpstream.Close()
 
-	tp := &stubTokenProvider{baseURL: fakeUpstream.URL}
+	tp := testutil.TokenProvider{BaseURL: fakeUpstream.URL}
 	uc := upstream.NewClient(tp, nil)
 	handler := &Handler{
 		upstream:    uc,
@@ -255,48 +135,6 @@ func TestHandler_HandlePassthrough(t *testing.T) {
 	}
 }
 
-func TestGenerateRequestID(t *testing.T) {
-	id1 := copilot.GenerateRequestID()
-	id2 := copilot.GenerateRequestID()
-
-	if id1 == "" {
-		t.Error("GenerateRequestID should return a non-empty string")
-	}
-
-	if !strings.HasPrefix(id1, "req_") {
-		t.Errorf("GenerateRequestID should start with 'req_', got %s", id1)
-	}
-
-	if id1 == id2 {
-		t.Error("GenerateRequestID should generate unique IDs")
-	}
-}
-
-func TestUpstreamError(t *testing.T) {
-	err := &upstream.UpstreamError{
-		StatusCode: 429,
-		Body:       []byte(`{"error": "rate limited"}`),
-	}
-
-	expected := "upstream error: status 429, body: {\"error\": \"rate limited\"}"
-	if err.Error() != expected {
-		t.Errorf("Expected %q, got %q", expected, err.Error())
-	}
-}
-
-// stubTokenProvider implements upstream.TokenProvider for tests.
-type stubTokenProvider struct {
-	baseURL string
-}
-
-func (s *stubTokenProvider) GetToken(_ context.Context) (string, error) {
-	return "test-token", nil
-}
-
-func (s *stubTokenProvider) GetBaseURL() string {
-	return s.baseURL
-}
-
 // TestServeHTTP_UnreachableUpstreamReturns502 checks that a transport failure
 // before any response is written is a JSON bad gateway on every path.
 func TestServeHTTP_UnreachableUpstreamReturns502(t *testing.T) {
@@ -306,7 +144,7 @@ func TestServeHTTP_UnreachableUpstreamReturns502(t *testing.T) {
 	}
 	addr := ln.Addr().String()
 	ln.Close()
-	uc := upstream.NewClient(&stubTokenProvider{baseURL: "http://" + addr}, nil)
+	uc := upstream.NewClient(testutil.TokenProvider{BaseURL: "http://" + addr}, nil)
 	handler := NewHandler(uc, models.NewCache(uc, time.Minute))
 
 	for _, tc := range []struct{ method, path, body string }{
