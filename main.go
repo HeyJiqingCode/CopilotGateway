@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"flag"
 	"fmt"
 	"log/slog"
@@ -9,7 +10,6 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
-	"strconv"
 	"syscall"
 	"time"
 
@@ -25,76 +25,18 @@ import (
 var version = "dev"
 
 func main() {
-	var (
-		port              = flag.Int("port", 0, "Server port (env: COPILOTGW_PORT, default: 7777)")
-		host              = flag.String("host", "", "Server host (env: COPILOTGW_HOST, default: 127.0.0.1)")
-		tokenDir          = flag.String("token-dir", "", "Token storage directory (env: COPILOTGW_TOKEN_DIR, default: ~/.config/copilotgateway)")
-		apiKey            = flag.String("api-key", "", "Required API key(s) for clients, comma-separated (env: COPILOTGW_API_KEY)")
-		showVersion       = flag.Bool("version", false, "Show version and exit")
-		debug             = flag.Bool("debug", false, "Enable debug logging (env: COPILOTGW_DEBUG)")
-		responsesIDCompat = flag.Bool("responses-id-compat", true, "Normalize drifting Responses output item IDs (env: COPILOTGW_RESPONSES_ID_COMPAT)")
-		modelRoutes       = flag.String("model-routes", "", "JSON map of model routes for /v1/chat/completions and /v1/responses, e.g. {\"codex-auto-review\":\"gpt-5.6-luna\"} (env: COPILOTGW_MODEL_ROUTES)")
-	)
-	flag.Parse()
-
-	// An explicit CLI setting wins over the environment, including =false.
-	compatFlagSet := false
-	flag.Visit(func(f *flag.Flag) {
-		if f.Name == "responses-id-compat" {
-			compatFlagSet = true
-		}
-	})
-	if !compatFlagSet {
-		if v := os.Getenv("COPILOTGW_RESPONSES_ID_COMPAT"); v != "" {
-			enabled, err := strconv.ParseBool(v)
-			if err != nil {
-				fmt.Fprintln(os.Stderr, "error: COPILOTGW_RESPONSES_ID_COMPAT must be a boolean")
-				os.Exit(1)
-			}
-			*responsesIDCompat = enabled
-		}
+	cfg, err := parseConfig(os.Args[1:], os.Getenv)
+	switch {
+	case errors.Is(err, flag.ErrHelp):
+		os.Exit(0)
+	case errors.Is(err, errReported):
+		os.Exit(2)
+	case err != nil:
+		fmt.Fprintln(os.Stderr, "error:", err)
+		os.Exit(2)
 	}
 
-	// Apply debug env var
-	if !*debug {
-		if v := os.Getenv("COPILOTGW_DEBUG"); v != "" {
-			if enabled, err := strconv.ParseBool(v); err == nil {
-				*debug = enabled
-			}
-		}
-	}
-
-	// Apply env var defaults
-	if *host == "" {
-		if v := os.Getenv("COPILOTGW_HOST"); v != "" {
-			*host = v
-		} else {
-			*host = "127.0.0.1"
-		}
-	}
-	if *port == 0 {
-		if v := os.Getenv("COPILOTGW_PORT"); v != "" {
-			if p, err := strconv.Atoi(v); err == nil {
-				*port = p
-			}
-		}
-		if *port == 0 {
-			*port = 7777
-		}
-	}
-	if *tokenDir == "" {
-		if v := os.Getenv("COPILOTGW_TOKEN_DIR"); v != "" {
-			*tokenDir = v
-		}
-	}
-	if *apiKey == "" {
-		*apiKey = os.Getenv("COPILOTGW_API_KEY")
-	}
-	if *modelRoutes == "" {
-		*modelRoutes = os.Getenv("COPILOTGW_MODEL_ROUTES")
-	}
-
-	if *showVersion {
+	if cfg.showVersion {
 		fmt.Printf("copilotgateway version %s\n", version)
 		os.Exit(0)
 	}
@@ -103,21 +45,15 @@ func main() {
 	copilot.ConfigureFromEnv()
 
 	// 强制鉴权:必须配置至少一个 API key,否则拒绝启动(避免公网开放代理)
-	apiKeys := auth.ParseAPIKeys(*apiKey)
+	apiKeys := auth.ParseAPIKeys(cfg.apiKey)
 	if len(apiKeys) == 0 {
 		fmt.Fprintln(os.Stderr, "error: an API key is required. Set COPILOTGW_API_KEY (or -api-key), comma-separated for multiple.")
 		os.Exit(1)
 	}
 
-	routes, err := proxy.ParseModelRoutes(*modelRoutes)
-	if err != nil {
-		fmt.Fprintln(os.Stderr, "error: invalid COPILOTGW_MODEL_ROUTES (or -model-routes):", err)
-		os.Exit(1)
-	}
-
 	// Set up logging
 	logLevel := slog.LevelInfo
-	if *debug {
+	if cfg.debug {
 		logLevel = slog.LevelDebug
 	}
 	logger := slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{
@@ -126,17 +62,18 @@ func main() {
 	slog.SetDefault(logger)
 
 	// Determine token directory
-	if *tokenDir == "" {
+	tokenDir := cfg.tokenDir
+	if tokenDir == "" {
 		homeDir, err := os.UserHomeDir()
 		if err != nil {
 			slog.Error("failed to get home directory", "error", err)
 			os.Exit(1)
 		}
-		*tokenDir = filepath.Join(homeDir, ".config", "copilotgateway")
+		tokenDir = filepath.Join(homeDir, ".config", "copilotgateway")
 	}
 
 	// Initialize auth client
-	authClient, err := auth.NewClient(*tokenDir)
+	authClient, err := auth.NewClient(tokenDir)
 	if err != nil {
 		slog.Error("failed to initialize auth client", "error", err)
 		os.Exit(1)
@@ -158,11 +95,11 @@ func main() {
 
 	// Initialize proxy handler
 	proxyHandler := proxy.NewHandler(authClient, transport, modelsCache)
-	proxyHandler.DisableResponsesIDCompat = !*responsesIDCompat
-	slog.Info("Responses output ID compatibility", "enabled", *responsesIDCompat)
-	proxyHandler.ModelRoutes = routes
-	if len(routes) > 0 {
-		slog.Info("model routes configured", "routes", routes)
+	proxyHandler.DisableResponsesIDCompat = !cfg.responsesIDCompat
+	slog.Info("Responses output ID compatibility", "enabled", cfg.responsesIDCompat)
+	proxyHandler.AutoReviewModel = cfg.autoReviewModel
+	if cfg.autoReviewModel != "" {
+		slog.Info("auto-review model configured", "model", cfg.autoReviewModel)
 	}
 
 	// Initialize Anthropic handler
@@ -199,7 +136,7 @@ func main() {
 
 	// Create server
 	server := &http.Server{
-		Addr:              fmt.Sprintf("%s:%d", *host, *port),
+		Addr:              fmt.Sprintf("%s:%d", cfg.host, cfg.port),
 		ReadHeaderTimeout: 10 * time.Second,
 		// No ReadTimeout — ReadHeaderTimeout protects against slowloris.
 		// ReadTimeout would kill long-lived SSE streaming connections.
@@ -211,7 +148,7 @@ func main() {
 	// Start server in goroutine
 	serverErr := make(chan error, 1)
 	go func() {
-		slog.Info("starting server", "host", *host, "port", *port)
+		slog.Info("starting server", "host", cfg.host, "port", cfg.port)
 		if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			serverErr <- err
 		}
@@ -230,10 +167,10 @@ func main() {
 	slog.Info("shutting down server")
 
 	// Give the server 30 seconds to finish handling existing requests
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	shutdownCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
-	if err := server.Shutdown(ctx); err != nil {
+	if err := server.Shutdown(shutdownCtx); err != nil {
 		slog.Error("server forced to shutdown", "error", err)
 		os.Exit(1)
 	}

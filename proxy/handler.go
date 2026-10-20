@@ -24,9 +24,9 @@ type Handler struct {
 	// mapping is stored by the compatibility layer.
 	DisableResponsesIDCompat bool
 
-	// ModelRoutes rewrites the requested model for /chat/completions and
-	// /responses (e.g. Codex's codex-auto-review pseudo-model).
-	ModelRoutes ModelRoutes
+	// AutoReviewModel replaces Codex's codex-auto-review pseudo-model, which
+	// Copilot rejects; empty forwards it unchanged.
+	AutoReviewModel string
 }
 
 // NewHandler creates a new proxy handler.
@@ -101,8 +101,8 @@ func (h *Handler) handlePassthrough(w http.ResponseWriter, r *http.Request, endp
 			WriteOpenAIError(w, http.StatusRequestEntityTooLarge, OpenAIErrorTypeInvalidRequest, upstream.RequestBodyTooLargeMessage())
 			return
 		}
-		if routed, from, to, ok := h.ModelRoutes.rewrite(bodyBytes); ok {
-			slog.Info("model route applied", "endpoint", endpoint, "from", from, "to", to)
+		if routed, ok := rewriteAutoReviewModel(bodyBytes, h.AutoReviewModel); ok {
+			slog.Info("auto-review model applied", "endpoint", endpoint, "to", h.AutoReviewModel)
 			bodyBytes = routed
 		}
 		r.Body = io.NopCloser(bytes.NewReader(bodyBytes))

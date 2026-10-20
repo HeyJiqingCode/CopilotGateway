@@ -138,12 +138,12 @@ Enter the code and the gateway recovers without a restart. The same code is also
   -token-dir string     Token storage directory (default ~/.config/copilotgateway)
   -api-key string       Required API key(s), comma-separated (env: COPILOTGW_API_KEY)
   -responses-id-compat  Normalize drifting Responses output item IDs (default true)
-  -model-routes string  JSON model route map for /v1/chat/completions and /v1/responses (env: COPILOTGW_MODEL_ROUTES)
+  -auto-review-model string  Model replacing Codex's codex-auto-review pseudo-model (env: COPILOTGW_AUTO_REVIEW_MODEL)
   -debug                Enable debug logging
   -version              Show version and exit
 ```
 
-> CLI flags take precedence over environment variables.
+> CLI flags take precedence over environment variables. An invalid value, such as a non-numeric `COPILOTGW_PORT`, stops the gateway with an error.
 
 ### Environment Variables
 
@@ -155,7 +155,7 @@ Enter the code and the gateway recovers without a restart. The same code is also
 | `COPILOTGW_TOKEN_DIR` | Token storage directory | `~/.config/copilotgateway` |
 | `COPILOTGW_DEBUG` | Enable debug logging (`true`/`false`, `1`/`0`) | `false` |
 | `COPILOTGW_RESPONSES_ID_COMPAT` | Normalize drifting Responses output item IDs; see [streaming compatibility](#streaming-compatibility) | `true` |
-| `COPILOTGW_MODEL_ROUTES` | JSON map rewriting the requested model on `/v1/chat/completions` and `/v1/responses`, e.g. `{"codex-auto-review":"gpt-5.6-luna"}` for Codex automatic approval review, whose pseudo-model Copilot rejects | _unset — no routes_ |
+| `COPILOTGW_AUTO_REVIEW_MODEL` | Model that replaces `codex-auto-review`, the pseudo-model Codex sends for automatic approval review and Copilot rejects, e.g. `gpt-6-luna` | _unset — forwarded unchanged_ |
 | `COPILOTGW_EDITOR_VERSION` | Spoofed editor version header | `vscode/1.142.0` |
 | `COPILOTGW_PLUGIN_VERSION` | Spoofed plugin version header | `copilot-chat/0.70.0` |
 | `COPILOTGW_CHAT_USER_AGENT` | Spoofed Copilot Chat User-Agent | `GitHubCopilotChat/0.70.0` |
