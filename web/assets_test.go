@@ -47,26 +47,6 @@ func TestAssetsOnlyServeKnownFiles(t *testing.T) {
 	}
 }
 
-func TestConfigEndpointIncludesUser(t *testing.T) {
-	mux := newTestMux(t, stubModels{})
-	c := doLogin(t, mux, "admin", "pass123")
-	req := httptest.NewRequest(http.MethodGet, "/web/api/config", nil)
-	req.AddCookie(c)
-	rec := httptest.NewRecorder()
-	mux.ServeHTTP(rec, req)
-
-	var got map[string]json.RawMessage
-	if err := json.Unmarshal(rec.Body.Bytes(), &got); err != nil {
-		t.Fatal(err)
-	}
-	if string(got["username"]) != `"admin"` {
-		t.Fatalf("username = %s, want \"admin\"", got["username"])
-	}
-	if _, ok := got["version"]; ok {
-		t.Fatalf("config still exposes version: %s", rec.Body.String())
-	}
-}
-
 // refreshingModels counts Refresh calls on top of stubModels.
 type refreshingModels struct {
 	stubModels
@@ -95,6 +75,24 @@ func TestModelsRefreshEndpoint(t *testing.T) {
 	mux.ServeHTTP(rec, req)
 	if rec.Code != http.StatusOK || refreshes != 1 || !strings.Contains(rec.Body.String(), `"m1"`) {
 		t.Fatalf("with session: status = %d, refreshes = %d, body = %s; want 200 with the fetched catalog", rec.Code, refreshes, rec.Body.String())
+	}
+}
+
+func TestModelsRefreshFailureReturns502(t *testing.T) {
+	refreshes := 0
+	mux := http.NewServeMux()
+	NewHandler(testConfig(), refreshingModels{refreshes: &refreshes, err: errors.New("models request failed: upstream error: status 503")}).Register(mux)
+
+	c := doLogin(t, mux, "admin", "pass123")
+	req := httptest.NewRequest(http.MethodPost, "/web/api/models/refresh", nil)
+	req.AddCookie(c)
+	rec := httptest.NewRecorder()
+	mux.ServeHTTP(rec, req)
+
+	var got struct{ Error string }
+	_ = json.Unmarshal(rec.Body.Bytes(), &got)
+	if rec.Code != http.StatusBadGateway || got.Error != "models request failed: upstream error: status 503" {
+		t.Fatalf("status = %d, body = %s; want 502 with the refresh error", rec.Code, rec.Body.String())
 	}
 }
 

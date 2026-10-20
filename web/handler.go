@@ -65,7 +65,6 @@ func (h *Handler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("GET /login", h.handleLoginPage)
 	mux.HandleFunc("POST /auth/login", h.handleLogin)
 	mux.HandleFunc("POST /auth/logout", h.handleLogout)
-	mux.HandleFunc("GET /auth/session", h.handleSession)
 	mux.HandleFunc("GET /web/api/models", h.handleModels)
 	mux.HandleFunc("POST /web/api/models/refresh", h.handleModelsRefresh)
 	mux.HandleFunc("GET /web/api/config", h.handleConfig)
@@ -137,7 +136,7 @@ func (h *Handler) handleLogin(w http.ResponseWriter, r *http.Request) {
 		Password string `json:"password"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || !h.validCredentials(req.Username, req.Password) {
-		writeJSON(w, http.StatusUnauthorized, map[string]string{"error": "用户名或密码错误"})
+		writeJSON(w, http.StatusUnauthorized, map[string]string{"error": "invalid username or password"})
 		return
 	}
 	ttl := time.Duration(h.cfg.SessionHours) * time.Hour
@@ -165,16 +164,25 @@ func (h *Handler) handleLogout(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]bool{"ok": true})
 }
 
-func (h *Handler) handleSession(w http.ResponseWriter, r *http.Request) {
-	_, ok := h.currentUser(r)
-	writeJSON(w, http.StatusOK, map[string]bool{"authenticated": ok})
+func (h *Handler) handleModels(w http.ResponseWriter, r *http.Request) {
+	if _, ok := h.requireSession(w, r); ok {
+		h.writeModels(w, r)
+	}
 }
 
-func (h *Handler) handleModels(w http.ResponseWriter, r *http.Request) {
-	if _, ok := h.currentUser(r); !ok {
-		writeJSON(w, http.StatusUnauthorized, map[string]string{"error": "需要登录后访问"})
+// handleModelsRefresh 立即从上游重新拉取目录,再返回与 GET 相同的数据。
+func (h *Handler) handleModelsRefresh(w http.ResponseWriter, r *http.Request) {
+	if _, ok := h.requireSession(w, r); !ok {
 		return
 	}
+	if err := h.models.Refresh(r.Context()); err != nil {
+		writeJSON(w, http.StatusBadGateway, map[string]string{"error": err.Error()})
+		return
+	}
+	h.writeModels(w, r)
+}
+
+func (h *Handler) writeModels(w http.ResponseWriter, r *http.Request) {
 	raw, err := h.models.GetRaw(r.Context())
 	if err != nil {
 		writeJSON(w, http.StatusBadGateway, map[string]string{"error": err.Error()})
@@ -193,27 +201,20 @@ func (h *Handler) handleModels(w http.ResponseWriter, r *http.Request) {
 	}{h.models.CachedAt(), upstreamBody.Data})
 }
 
-// handleModelsRefresh 立即从上游重新拉取目录,再返回与 GET 相同的数据。
-func (h *Handler) handleModelsRefresh(w http.ResponseWriter, r *http.Request) {
-	if _, ok := h.currentUser(r); !ok {
-		writeJSON(w, http.StatusUnauthorized, map[string]string{"error": "需要登录后访问"})
-		return
-	}
-	if err := h.models.Refresh(r.Context()); err != nil {
-		writeJSON(w, http.StatusBadGateway, map[string]string{"error": err.Error()})
-		return
-	}
-	h.handleModels(w, r)
-}
-
 // handleConfig 返回接入信息(API key 仅对已登录会话下发)和当前用户。
 func (h *Handler) handleConfig(w http.ResponseWriter, r *http.Request) {
+	if username, ok := h.requireSession(w, r); ok {
+		writeJSON(w, http.StatusOK, map[string]any{"api_keys": h.cfg.APIKeys, "username": username})
+	}
+}
+
+// requireSession 返回当前登录用户;没有有效会话时直接回 401。
+func (h *Handler) requireSession(w http.ResponseWriter, r *http.Request) (string, bool) {
 	username, ok := h.currentUser(r)
 	if !ok {
-		writeJSON(w, http.StatusUnauthorized, map[string]string{"error": "需要登录后访问"})
-		return
+		writeJSON(w, http.StatusUnauthorized, map[string]string{"error": "login required"})
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"api_keys": h.cfg.APIKeys, "username": username})
+	return username, ok
 }
 
 // validCredentials 用常量时间比较校验凭据,两个字段都比较后再合并结果。

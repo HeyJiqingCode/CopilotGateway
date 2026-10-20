@@ -36,6 +36,12 @@ func TestSessionStore(t *testing.T) {
 		if _, ok := s.Username(token); ok {
 			t.Error("expired session should not resolve")
 		}
+		s.mu.Lock()
+		_, kept := s.sessions[token]
+		s.mu.Unlock()
+		if kept {
+			t.Error("expired session was not removed")
+		}
 	})
 
 	t.Run("delete", func(t *testing.T) {

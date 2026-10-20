@@ -1,18 +1,17 @@
 // Shared helpers for the login page and the model catalog.
 const CGW = (() => {
   const LANG_KEY = 'cgw_lang';
-  let memoryLang = null;
 
-  // Language is remembered per browser; it still switches when storage is blocked.
+  // Language is remembered per browser. Each page keeps its own copy after
+  // load, so switching still works when storage is blocked.
   function getLang() {
-    let saved = memoryLang;
-    try { saved = localStorage.getItem(LANG_KEY) || saved; } catch { /* storage blocked */ }
+    let saved = null;
+    try { saved = localStorage.getItem(LANG_KEY); } catch { /* storage blocked */ }
     if (saved === 'zh' || saved === 'en') return saved;
     return navigator.language.startsWith('zh') ? 'zh' : 'en';
   }
 
   function setLang(lang) {
-    memoryLang = lang;
     try { localStorage.setItem(LANG_KEY, lang); } catch { /* storage blocked */ }
     document.documentElement.lang = lang === 'zh' ? 'zh-CN' : 'en';
   }

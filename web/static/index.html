@@ -325,7 +325,7 @@ function renderTable() {
     const rows = list.map(m => {
       const p = pricesOf(m);
       const lim = m.capabilities?.limits || {};
-      const eps = (m.supported_endpoints || []).slice().sort((a, b) => Object.keys(ENDPOINTS).indexOf(a) - Object.keys(ENDPOINTS).indexOf(b));
+      const eps = sortedEndpoints(m);
       return `<tr class="model-row${m.id === state.openId ? ' is-selected' : ''}" data-id="${esc(m.id)}" tabindex="0">
         <td><div class="model-cell">${vendorLogo(m.vendor)}<div>
           <div class="model-name">${esc(m.name || m.id)}${m.preview ? `<span class="tag tone-amber">${esc(t('preview'))}</span>` : ''}</div>
@@ -344,10 +344,18 @@ function renderTable() {
   }).join('');
 }
 
-function row(label, value) { return `<div><dt>${esc(label)}</dt><dd>${value}</dd></div>`; }
+// Known endpoints in ENDPOINTS order, unknown ones after them.
+function sortedEndpoints(m) {
+  const order = Object.keys(ENDPOINTS);
+  const rank = ep => (order.includes(ep) ? order.indexOf(ep) : order.length);
+  return (m.supported_endpoints || []).slice().sort((a, b) => rank(a) - rank(b));
+}
 
-function section(iconName, tone, title, rows, aux) {
-  return `<section class="section"><h4 class="section-title">${icon(iconName, tone)}${esc(title)}${aux ? `<span class="card-aux">${esc(aux)}</span>` : ''}</h4><dl class="rows">${rows}</dl></section>`;
+function row(label, value) { return `<div><dt>${esc(label)}</dt><dd>${value}</dd></div>`; }
+function dl(...rows) { return `<dl class="rows">${rows.join('')}</dl>`; }
+
+function section(iconName, tone, title, content, aux) {
+  return `<section class="section"><h4 class="section-title">${icon(iconName, tone)}${esc(title)}${aux ? `<span class="card-aux">${esc(aux)}</span>` : ''}</h4>${content}</section>`;
 }
 
 const PRICE_ITEMS = [['input', 'input_price'], ['output', 'output_price'], ['cacheRead', 'cache_price'],
@@ -358,12 +366,14 @@ const PRICE_ITEMS = [['input', 'input_price'], ['output', 'output_price'], ['cac
 function priceMatrix(m) {
   const tiers = m.billing?.token_prices || {};
   const short = tiers.default;
-  if (!short) return `<dl class="rows">${row(t('pricing'), dash)}</dl>`;
+  if (!short) return dl(row(t('pricing'), dash));
   const long = tiers.long_context;
   const same = long && PRICE_ITEMS.every(([, k]) => long[k] === short[k]);
-  const rows = !long ? [[t('allContext'), short.context_max ? `≤ ${tokens(short.context_max)}` : '', short]]
-    : same ? [[t('allContext'), `≤ ${tokens(long.context_max)}`, short]]
-    : [[t('shortContext'), `≤ ${tokens(short.context_max)}`, short], [t('longContext'), `> ${tokens(short.context_max)}`, long]];
+  // Plain text: the range is escaped below, so a missing bound must not become the dash HTML.
+  const range = (sign, n) => (n == null ? '' : `${sign} ${tokens(n)}`);
+  const rows = !long ? [[t('allContext'), range('≤', short.context_max), short]]
+    : same ? [[t('allContext'), range('≤', long.context_max), short]]
+    : [[t('shortContext'), range('≤', short.context_max), short], [t('longContext'), range('>', short.context_max), long]];
   const items = PRICE_ITEMS.filter(([, k]) => rows.some(([, , tier]) => tier[k] != null));
   return `<table class="price-matrix"><thead><tr><th>${esc(t('tier'))}</th>${items.map(([label]) => `<th>${esc(t(label))}</th>`).join('')}</tr></thead>
     <tbody>${rows.map(([name, range, tier]) => `<tr><td>${esc(name)}${range ? `<span class="tier-range">${esc(range)}</span>` : ''}</td>${items.map(([, k]) => `<td>${price(tier[k])}</td>`).join('')}</tr>`).join('')}</tbody></table>`;
@@ -385,37 +395,34 @@ function renderDrawer() {
     + (m.preview ? `<span class="tag tone-amber">${esc(t('preview'))}</span>` : '');
 
   const media = (lim.vision?.supported_media_types || []).map(x => x.split('/')[1].toUpperCase()).join(' / ');
-  const eps = m.supported_endpoints || [];
+  const eps = sortedEndpoints(m);
 
   $('drawer-body').innerHTML = [
-    section('gauge', 'text-blue', t('limits'), [
+    section('gauge', 'text-blue', t('limits'), dl(
       row(t('contextWindow'), tokens(lim.max_context_window_tokens)),
       row(t('maxPrompt'), tokens(lim.max_prompt_tokens)),
       row(t('maxOutput'), tokens(lim.max_output_tokens)),
       row(t('maxNonStreaming'), tokens(lim.max_non_streaming_output_tokens)),
-    ].join('')),
-    `<section class="section"><h4 class="section-title">${icon('wallet', 'text-amber')}${esc(t('pricing'))}<span class="card-aux">${esc(t('priceUnit'))}</span></h4>${priceMatrix(m)}</section>`,
-    section('sparkles', 'text-purple', t('capabilities'), [
+    )),
+    section('wallet', 'text-amber', t('pricing'), priceMatrix(m), t('priceUnit')),
+    section('sparkles', 'text-purple', t('capabilities'), dl(
       row(t('toolCalls'), yes(s.tool_calls, s.parallel_tool_calls ? t('parallel') : t('supported'))),
       row(t('structured'), yes(s.structured_outputs)),
       row(t('streaming'), yes(s.streaming)),
       row(t('vision'), yes(s.vision, media ? `${t('supported')} · ${media}` : t('supported'))),
       row(t('effort'), (s.reasoning_effort || []).length ? esc(s.reasoning_effort.join(' / ')) : dash),
       row(t('adaptive'), yes(s.adaptive_thinking)),
-    ].join('')),
-    section('route', 'text-teal', t('endpoints'), row(t('endpoints'), eps.length ? eps.map(ep => endpointTag(ep, true)).join('') : dash)),
+    )),
+    section('route', 'text-teal', t('endpoints'), dl(row(t('endpoints'), eps.length ? eps.map(ep => endpointTag(ep, true)).join('') : dash))),
   ].join('');
 }
 
 function render() { renderStatic(); renderConnection(); renderUser(); renderTable(); renderDrawer(); }
 
 // ---------- behaviour ----------
-let lastRow = null;
-
-function openModel(id, rowEl) {
+function openModel(id) {
   if (state.openId === id) { closeDrawer(); return; }
   state.openId = id;
-  lastRow = rowEl;
   renderTable();
   renderDrawer();
   $('drawer-body').scrollTop = 0;
@@ -428,8 +435,8 @@ function closeDrawer() {
   state.openId = null;
   renderTable();
   renderDrawer();
-  const rowEl = document.querySelector(`.model-row[data-id="${CSS.escape(id)}"]`) || lastRow;
-  rowEl?.focus();
+  // renderTable() rebuilt the rows, so look the reopened row up again.
+  document.querySelector(`.model-row[data-id="${CSS.escape(id)}"]`)?.focus();
 }
 
 function setMenu(open) {
@@ -500,11 +507,11 @@ $('provider-menu').addEventListener('click', e => {
 
 $('table-body').addEventListener('click', e => {
   const rowEl = e.target.closest('.model-row');
-  if (rowEl) openModel(rowEl.dataset.id, rowEl);
+  if (rowEl) openModel(rowEl.dataset.id);
 });
 $('table-body').addEventListener('keydown', e => {
   const rowEl = e.target.closest('.model-row');
-  if (rowEl && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); openModel(rowEl.dataset.id, rowEl); }
+  if (rowEl && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); openModel(rowEl.dataset.id); }
 });
 
 document.addEventListener('click', async e => {

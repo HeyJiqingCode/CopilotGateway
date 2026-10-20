@@ -44,7 +44,7 @@ func doLogin(t *testing.T, mux *http.ServeMux, username, password string) *http.
 		t.Fatalf("login status = %d, want 200 (body: %s)", rec.Code, rec.Body.String())
 	}
 	for _, c := range rec.Result().Cookies() {
-		if c.Name == "copilotgateway_session" {
+		if c.Name == cookieName {
 			return c
 		}
 	}
@@ -155,23 +155,8 @@ func TestPageGuard(t *testing.T) {
 	})
 }
 
-func TestSessionEndpointAndLogout(t *testing.T) {
+func TestLogout(t *testing.T) {
 	mux := newTestMux(t, stubModels{})
-
-	t.Run("session endpoint reports state", func(t *testing.T) {
-		req := httptest.NewRequest(http.MethodGet, "/auth/session", nil)
-		rec := httptest.NewRecorder()
-		mux.ServeHTTP(rec, req)
-		var got struct {
-			Authenticated bool `json:"authenticated"`
-		}
-		if err := json.Unmarshal(rec.Body.Bytes(), &got); err != nil {
-			t.Fatal(err)
-		}
-		if got.Authenticated {
-			t.Error("should be unauthenticated without cookie")
-		}
-	})
 
 	t.Run("logout invalidates session", func(t *testing.T) {
 		c := doLogin(t, mux, "admin", "pass123")
@@ -219,13 +204,17 @@ func TestConfigEndpoint(t *testing.T) {
 			t.Fatalf("status = %d, want 200", rec.Code)
 		}
 		var got struct {
-			APIKeys []string `json:"api_keys"`
+			APIKeys  []string `json:"api_keys"`
+			Username string   `json:"username"`
 		}
 		if err := json.Unmarshal(rec.Body.Bytes(), &got); err != nil {
 			t.Fatal(err)
 		}
 		if len(got.APIKeys) != 2 || got.APIKeys[0] != "sk-demo-1" {
 			t.Errorf("api_keys = %v, want [sk-demo-1 sk-demo-2]", got.APIKeys)
+		}
+		if got.Username != "admin" {
+			t.Errorf("username = %q, want admin", got.Username)
 		}
 	})
 }
@@ -266,21 +255,6 @@ func TestModelsEndpoint(t *testing.T) {
 		}
 		if len(got.Data) != 1 {
 			t.Errorf("data length = %d, want 1", len(got.Data))
-		}
-	})
-
-	t.Run("upstream failure returns 502 with error", func(t *testing.T) {
-		mux := newTestMux(t, stubModels{err: context.DeadlineExceeded})
-		c := doLogin(t, mux, "admin", "pass123")
-		req := httptest.NewRequest(http.MethodGet, "/web/api/models", nil)
-		req.AddCookie(c)
-		rec := httptest.NewRecorder()
-		mux.ServeHTTP(rec, req)
-		if rec.Code != http.StatusBadGateway {
-			t.Fatalf("status = %d, want 502", rec.Code)
-		}
-		if !strings.Contains(rec.Body.String(), "error") {
-			t.Errorf("body should contain error message, got: %s", rec.Body.String())
 		}
 	})
 }

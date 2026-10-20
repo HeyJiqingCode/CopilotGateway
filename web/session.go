@@ -9,7 +9,6 @@ import (
 )
 
 // sessionStore 是进程内会话表(token → 用户名+过期时间),重启即失效。
-// PoC 级语义,与 BidCopilot 的本地认证一致。
 type sessionStore struct {
 	mu       sync.Mutex
 	sessions map[string]sessionEntry

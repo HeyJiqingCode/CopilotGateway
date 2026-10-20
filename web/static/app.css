@@ -41,7 +41,6 @@
 * { box-sizing: border-box; }
 html, body { margin: 0; height: 100%; }
 body {
-  min-width: 1280px;
   font-family: var(--font);
   font-size: 13px;
   line-height: 1.5;
@@ -163,7 +162,8 @@ button { cursor: pointer; }
 .login-card .btn-primary { margin-top: 24px; }
 fieldset { margin: 0; padding: 0; border: 0; min-width: 0; }
 
-/* Catalog page shell */
+/* Catalog page shell: a wide table, so the page scrolls rather than squeezes */
+body:not(.login-body) { min-width: 1280px; }
 .app { display: flex; flex-direction: column; height: 100%; }
 .topbar { display: flex; align-items: center; justify-content: space-between; height: 60px; padding: 0 24px; flex: none; }
 .topbar-actions { display: flex; align-items: center; gap: 8px; }
