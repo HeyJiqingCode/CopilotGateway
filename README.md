@@ -206,7 +206,8 @@ Add to `~/.claude/settings.json`:
     "ANTHROPIC_DEFAULT_HAIKU_MODEL": "claude-haiku-5-5",
     "ANTHROPIC_DEFAULT_HAIKU_MODEL_NAME": "Claude Haiku 5.5",
     "ANTHROPIC_DEFAULT_HAIKU_MODEL_DESCRIPTION": "Claude Haiku 5.5 routed through a Github Copilot custom endpoint",
-    "CLAUDE_CODE_SUBAGENT_MODEL": "claude-opus-5-5"
+    "CLAUDE_CODE_SUBAGENT_MODEL": "claude-opus-5-5",
+    "CLAUDE_CODE_AUTO_MODE_SERVER": "0"
   },
   "permissions": {
     "deny": [
@@ -215,6 +216,8 @@ Add to `~/.claude/settings.json`:
   }
 }
 ```
+
+> `CLAUDE_CODE_AUTO_MODE_SERVER=0` stops Claude Code from asking for server-side auto mode classifier review, which Copilot doesn't provide, so the "this session isn't eligible" notice no longer appears. Auto mode keeps working with Claude Code's own classifier requests, which count toward Copilot usage like any other request.
 
 ### Codex
 
