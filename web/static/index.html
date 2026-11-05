@@ -99,6 +99,7 @@ const I18N = {
     close: '关闭', limits: '限制', pricing: '单价', capabilities: '能力', endpoints: '端点',
     contextWindow: '上下文窗口', maxPrompt: '最大输入', maxOutput: '最大输出', maxNonStreaming: '非流式最大输出',
     input: '输入', output: '输出', cacheRead: '缓存读取', cacheWrite: '缓存写入', cacheWrite1h: '1 小时缓存写入',
+    imageInput: '图片输入', imageOutput: '图片输出',
     tier: '上下文', shortContext: '短上下文', longContext: '长上下文', allContext: '全部',
     toolCalls: '工具调用', structured: '结构化输出', streaming: '流式', vision: '视觉', effort: 'Reasoning effort', adaptive: '自适应思考',
     supported: '支持', parallel: '支持 · 可并行',
@@ -116,6 +117,7 @@ const I18N = {
     close: 'Close', limits: 'Limits', pricing: 'Unit prices', capabilities: 'Capabilities', endpoints: 'Endpoints',
     contextWindow: 'Context window', maxPrompt: 'Max input', maxOutput: 'Max output', maxNonStreaming: 'Max output (non-streaming)',
     input: 'Input', output: 'Output', cacheRead: 'Cache read', cacheWrite: 'Cache write', cacheWrite1h: 'Cache write 1h',
+    imageInput: 'Image input', imageOutput: 'Image output',
     tier: 'Context', shortContext: 'Short context', longContext: 'Long context', allContext: 'All',
     toolCalls: 'Tool calls', structured: 'Structured outputs', streaming: 'Streaming', vision: 'Vision', effort: 'Reasoning effort', adaptive: 'Adaptive thinking',
     supported: 'Supported', parallel: 'Supported · parallel',
@@ -128,6 +130,8 @@ const ENDPOINTS = {
   '/chat/completions': { label: 'Chat', tone: 'tone-blue' },
   '/responses': { label: 'Responses', tone: 'tone-teal' },
   'ws:/responses': { label: 'WebSocket', tone: 'tone-purple' },
+  '/v1/images/generations': { label: 'Images', tone: 'tone-green' },
+  '/v1/images/edits': { label: 'Image Edits', tone: 'tone-green' },
 };
 
 // Vendor logos from @lobehub/icons-static-svg v1.95.1 (https://github.com/lobehub/lobe-icons), MIT License, Copyright (c) LobeHub.
@@ -218,6 +222,9 @@ function endpointTag(ep, full) {
 
 // ---------- data ----------
 const pricesOf = m => m.billing?.token_prices?.default || {};
+// Image models bill their output as image tokens and have no prompt cache.
+const isImageModel = m => m.capabilities?.type === 'image';
+const CACHE_PRICES = ['cache_price', 'cache_write_price', 'cache_write_1h_price'];
 
 // Only models with at least one endpoint are listed.
 function callableModels() {
@@ -334,9 +341,9 @@ function renderTable() {
         <td class="num">${tokens(lim.max_context_window_tokens)}</td>
         <td class="num">${tokens(lim.max_output_tokens)}</td>
         <td class="num">${price(p.input_price)}</td>
-        <td class="num">${price(p.output_price)}</td>
-        <td class="num">${price(p.cache_price)}</td>
-        <td class="num">${price(p.cache_write_price)}</td>
+        <td class="num">${price(isImageModel(m) ? p.image_output_price : p.output_price)}</td>
+        <td class="num">${isImageModel(m) ? dash : price(p.cache_price)}</td>
+        <td class="num">${isImageModel(m) ? dash : price(p.cache_write_price)}</td>
         <td><div class="endpoints">${eps.length ? eps.map(ep => endpointTag(ep, false)).join('') : dash}</div></td>
       </tr>`;
     }).join('');
@@ -359,7 +366,8 @@ function section(iconName, tone, title, content, aux) {
 }
 
 const PRICE_ITEMS = [['input', 'input_price'], ['output', 'output_price'], ['cacheRead', 'cache_price'],
-  ['cacheWrite', 'cache_write_price'], ['cacheWrite1h', 'cache_write_1h_price']];
+  ['cacheWrite', 'cache_write_price'], ['cacheWrite1h', 'cache_write_1h_price'],
+  ['imageInput', 'image_input_price'], ['imageOutput', 'image_output_price']];
 
 // Rows are context tiers. A long-context tier priced like the default one
 // collapses into a single row covering the whole window.
@@ -374,7 +382,7 @@ function priceMatrix(m) {
   const rows = !long ? [[t('allContext'), range('≤', short.context_max), short]]
     : same ? [[t('allContext'), range('≤', long.context_max), short]]
     : [[t('shortContext'), range('≤', short.context_max), short], [t('longContext'), range('>', short.context_max), long]];
-  const items = PRICE_ITEMS.filter(([, k]) => rows.some(([, , tier]) => tier[k] != null));
+  const items = PRICE_ITEMS.filter(([, k]) => !(isImageModel(m) && CACHE_PRICES.includes(k)) && rows.some(([, , tier]) => tier[k] != null));
   return `<table class="price-matrix"><thead><tr><th>${esc(t('tier'))}</th>${items.map(([label]) => `<th>${esc(t(label))}</th>`).join('')}</tr></thead>
     <tbody>${rows.map(([name, range, tier]) => `<tr><td>${esc(name)}${range ? `<span class="tier-range">${esc(range)}</span>` : ''}</td>${items.map(([, k]) => `<td>${price(tier[k])}</td>`).join('')}</tr>`).join('')}</tbody></table>`;
 }

@@ -33,7 +33,8 @@ func NewHandler(uc *copilot.Client, mc *copilot.Models) *Handler {
 	return &Handler{upstream: uc, modelsCache: mc}
 }
 
-// ServeHTTP routes /v1/models, /v1/chat/completions and /v1/responses.
+// ServeHTTP routes /v1/models, /v1/chat/completions, /v1/responses and the
+// image endpoints.
 func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
 
@@ -48,6 +49,9 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		h.handleModels(w, r)
 	case "/chat/completions", "/responses":
 		h.handlePassthrough(w, r, endpoint)
+	case "/images/generations", "/images/edits":
+		// Copilot serves images under /v1, as its model catalog declares.
+		h.handlePassthrough(w, r, "/v1"+endpoint)
 	default:
 		writeError(w, http.StatusNotFound, errTypeInvalidRequest, "Endpoint not found")
 	}

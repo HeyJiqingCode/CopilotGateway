@@ -2,6 +2,7 @@ package openai
 
 import (
 	"bufio"
+	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -56,6 +57,9 @@ func (h *Handler) handleStreamingRequest(w http.ResponseWriter, r *http.Request,
 func (h *Handler) streamResponse(w http.ResponseWriter, body io.ReadCloser, endpoint string) error {
 	if endpoint == "/responses" && !h.DisableResponsesIDCompat {
 		return streamResponses(w, body)
+	}
+	if strings.HasPrefix(endpoint, "/v1/images/") {
+		return relayStream(w, body)
 	}
 
 	scanner := bufio.NewScanner(body)
@@ -122,6 +126,33 @@ func (h *Handler) streamResponse(w http.ResponseWriter, body io.ReadCloser, endp
 	}
 
 	return nil
+}
+
+// relayStream copies an SSE stream unchanged, flushing at event boundaries.
+// It has no line limit: a streamed image is one base64 data line of several MiB.
+func relayStream(w http.ResponseWriter, body io.Reader) error {
+	flusher, canFlush := w.(http.Flusher)
+	reader := bufio.NewReaderSize(body, 64*1024)
+	for {
+		line, err := reader.ReadBytes('\n')
+		if len(line) > 0 {
+			if _, writeErr := w.Write(line); writeErr != nil {
+				return writeErr
+			}
+			if canFlush && len(bytes.TrimRight(line, "\r\n")) == 0 {
+				flusher.Flush()
+			}
+		}
+		if errors.Is(err, io.EOF) {
+			if canFlush {
+				flusher.Flush()
+			}
+			return nil
+		}
+		if err != nil {
+			return err
+		}
+	}
 }
 
 // isResponsesTerminationEvent checks if an SSE event line indicates

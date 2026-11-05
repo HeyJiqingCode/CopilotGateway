@@ -112,6 +112,7 @@ button { cursor: pointer; }
 .tone-purple { color: var(--purple); background: var(--purple-soft); }
 .tone-teal { color: var(--teal); background: var(--teal-soft); }
 .tone-slate { color: var(--slate); background: var(--slate-soft); }
+.tone-green { color: var(--success); background: var(--success-soft); }
 .tone-amber { color: var(--amber); background: var(--amber-soft); }
 .text-blue { color: var(--blue); }
 .text-purple { color: var(--purple); }
