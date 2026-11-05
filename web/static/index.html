@@ -58,6 +58,7 @@
       <div class="models-body">
         <div class="table-viewport scroll" id="table-viewport" hidden>
           <table class="table">
+            <colgroup id="table-cols"></colgroup>
             <thead><tr id="table-head"></tr></thead>
             <tbody id="table-body"></tbody>
           </table>
@@ -93,14 +94,26 @@ const I18N = {
     priceUnit: 'USD / 1M Tokens', aux: '{time} 更新',
     loading: '正在读取模型目录…', loadFail: '模型目录读取失败', fetched: '已拉取最新模型目录', fetchFail: '拉取失败，显示的是上次读取的数据',
     empty: '没有模型', emptyText: '上游目录里没有可显示的模型',
-    colModel: '模型', colVendor: '厂商', colContext: '上下文', colOutput: '最大输出',
-    colInput: '输入', colOutputPrice: '输出', colCacheRead: '缓存读取', colCacheWrite: '缓存写入', colEndpoints: '端点',
+    colModel: '模型', colVendor: '厂商', colContext: '上下文', colPrice: '价格（$/M Tokens）', cacheReadShort: '缓存读', cacheWriteShort: '缓存写', colEndpoints: '端点',
+    unpriced: '未定价',
     powerful: '强大', versatile: '全能', lightweight: '轻量', other: '其他', preview: '预览',
     close: '关闭', limits: '限制', pricing: '单价', capabilities: '能力', endpoints: '端点',
     contextWindow: '上下文窗口', maxPrompt: '最大输入', maxOutput: '最大输出', maxNonStreaming: '非流式最大输出',
-    input: '输入', output: '输出', cacheRead: '缓存读取', cacheWrite: '缓存写入', cacheWrite1h: '1 小时缓存写入',
+    input: '输入', output: '输出', cacheRead: '缓存读取', cacheWrite: '缓存写入', cacheWrite1h: '1 小时缓存写入', cacheWrite12h: '12 小时缓存写入',
     imageInput: '图片输入', imageOutput: '图片输出',
     newVersion: '新版本 {version} 可更新（当前 {current}）',
+    maxInputs: '最大输入条数', maxImages: '最多图片数', maxImageSize: '单张图片上限', mediaTypes: '图片格式',
+    parallelToolCalls: '并行工具调用', minThinking: '最小思考预算', maxThinking: '最大思考预算', dimensions: '自定义维度', unsupported: '不支持',
+    plans: '可用套餐', preferredTier: '优先计价档位', planTrial: '个人试用', planEdu: '教育版',
+    noticePendingDeprecation: '即将弃用', noticeDataRetention: '数据保留',
+    details: '模型信息', version: '版本', family: '系列', modelType: '类型', tokenizer: '分词器',
+    pickerCategory: '选择器分类', priceCategory: '价格档位', pickerEnabled: '在模型选择器中显示',
+    chatDefault: '默认对话模型', chatFallback: '备用对话模型', policyState: '策略', policyTerms: '策略说明', yes: '是', no: '否',
+    typeChat: '对话', typeImage: '图像', typeDecisions: '决策', typeEmbeddings: '嵌入', typeCompletion: '补全',
+    levelLow: '低', levelMedium: '中', levelHigh: '高', levelVeryHigh: '很高',
+    colEffort: '思考强度', deprecates: '{date} 弃用',
+    imagePriceNote: '提示词按「输入」计费，编辑时上传的图片按「图片输入」计费，生成的图片按「图片输出」计费，没有文本输出费用。GitHub 还公布了缓存文本输入和缓存图片输入的价格，模型目录里没有提供。',
+    pricingDocs: '查看 GitHub 价格说明', policyEnabled: '已启用', policyDisabled: '已停用',
     tier: '上下文', shortContext: '短上下文', longContext: '长上下文', allContext: '全部',
     toolCalls: '工具调用', structured: '结构化输出', streaming: '流式', vision: '视觉', effort: 'Reasoning effort', adaptive: '自适应思考',
     supported: '支持', parallel: '支持 · 可并行',
@@ -112,14 +125,26 @@ const I18N = {
     priceUnit: 'USD / 1M tokens', aux: 'Updated {time}',
     loading: 'Loading model catalog…', loadFail: 'Failed to load the model catalog', fetched: 'Fetched the latest model catalog', fetchFail: 'Fetch failed, showing the last loaded data',
     empty: 'No models', emptyText: 'The upstream catalog has no models to show',
-    colModel: 'Model', colVendor: 'Provider', colContext: 'Context', colOutput: 'Max output',
-    colInput: 'Input', colOutputPrice: 'Output', colCacheRead: 'Cache read', colCacheWrite: 'Cache write', colEndpoints: 'Endpoints',
+    colModel: 'Model', colVendor: 'Provider', colContext: 'Context', colPrice: 'Price ($/M tokens)', cacheReadShort: 'Cache read', cacheWriteShort: 'Cache write', colEndpoints: 'Endpoints',
+    unpriced: 'Not priced',
     powerful: 'Powerful', versatile: 'Versatile', lightweight: 'Lightweight', other: 'Other', preview: 'Preview',
     close: 'Close', limits: 'Limits', pricing: 'Unit prices', capabilities: 'Capabilities', endpoints: 'Endpoints',
     contextWindow: 'Context window', maxPrompt: 'Max input', maxOutput: 'Max output', maxNonStreaming: 'Max output (non-streaming)',
-    input: 'Input', output: 'Output', cacheRead: 'Cache read', cacheWrite: 'Cache write', cacheWrite1h: 'Cache write 1h',
+    input: 'Input', output: 'Output', cacheRead: 'Cache read', cacheWrite: 'Cache write', cacheWrite1h: 'Cache write 1h', cacheWrite12h: 'Cache write 12h',
     imageInput: 'Image input', imageOutput: 'Image output',
     newVersion: 'New version {version} available (current {current})',
+    maxInputs: 'Max inputs', maxImages: 'Max images', maxImageSize: 'Max image size', mediaTypes: 'Image formats',
+    parallelToolCalls: 'Parallel tool calls', minThinking: 'Min thinking budget', maxThinking: 'Max thinking budget', dimensions: 'Custom dimensions', unsupported: 'Not supported',
+    plans: 'Plans', preferredTier: 'Preferred price tier', planTrial: 'Individual trial', planEdu: 'Education',
+    noticePendingDeprecation: 'Pending deprecation', noticeDataRetention: 'Data retention',
+    details: 'Details', version: 'Version', family: 'Family', modelType: 'Type', tokenizer: 'Tokenizer',
+    pickerCategory: 'Picker category', priceCategory: 'Price category', pickerEnabled: 'In model picker',
+    chatDefault: 'Chat default', chatFallback: 'Chat fallback', policyState: 'Policy', policyTerms: 'Policy terms', yes: 'Yes', no: 'No',
+    typeChat: 'Chat', typeImage: 'Image', typeDecisions: 'Decisions', typeEmbeddings: 'Embeddings', typeCompletion: 'Completion',
+    levelLow: 'Low', levelMedium: 'Medium', levelHigh: 'High', levelVeryHigh: 'Very high',
+    colEffort: 'Reasoning effort', deprecates: 'Deprecates {date}',
+    imagePriceNote: 'The prompt is billed as input, images uploaded for edits as image input, and the generated image as image output; there is no text output charge. GitHub also publishes cached text input and cached image input prices, which the model catalog doesn\'t provide.',
+    pricingDocs: 'See GitHub pricing', policyEnabled: 'Enabled', policyDisabled: 'Disabled',
     tier: 'Context', shortContext: 'Short context', longContext: 'Long context', allContext: 'All',
     toolCalls: 'Tool calls', structured: 'Structured outputs', streaming: 'Streaming', vision: 'Vision', effort: 'Reasoning effort', adaptive: 'Adaptive thinking',
     supported: 'Supported', parallel: 'Supported · parallel',
@@ -127,6 +152,8 @@ const I18N = {
 };
 
 const CATEGORIES = ['powerful', 'versatile', 'lightweight'];
+// One color per picker category, shared by the group headers and the drawer tag.
+const CATEGORY_TONES = { powerful: 'purple', versatile: 'blue', lightweight: 'teal', other: 'slate' };
 const ENDPOINTS = {
   '/v1/messages': { label: 'Messages', tone: 'tone-amber' },
   '/chat/completions': { label: 'Chat', tone: 'tone-blue' },
@@ -134,6 +161,7 @@ const ENDPOINTS = {
   'ws:/responses': { label: 'WebSocket', tone: 'tone-purple' },
   '/v1/images/generations': { label: 'Images', tone: 'tone-green' },
   '/v1/images/edits': { label: 'Image Edits', tone: 'tone-green' },
+  '/v1/decisions': { label: 'Decisions', tone: 'tone-slate' },
 };
 
 // Vendor logos from @lobehub/icons-static-svg v1.95.1 (https://github.com/lobehub/lobe-icons), MIT License, Copyright (c) LobeHub.
@@ -224,9 +252,11 @@ function endpointTag(ep, full) {
 
 // ---------- data ----------
 const pricesOf = m => m.billing?.token_prices?.default || {};
-// Image models bill their output as image tokens and have no prompt cache.
-const isImageModel = m => m.capabilities?.type === 'image';
-const CACHE_PRICES = ['cache_price', 'cache_write_price', 'cache_write_1h_price'];
+// A catalog entry without a price basis (no default tier, or batch_size 0) is shown as not priced.
+const isPriced = m => {
+  const tp = m.billing?.token_prices;
+  return Boolean(tp?.default) && tp.batch_size !== 0;
+};
 
 // Only models with at least one endpoint are listed.
 function callableModels() {
@@ -340,31 +370,52 @@ function renderTable() {
     return;
   }
 
-  const head = [['colModel', ''], ['colVendor', ''], ['colContext', 'num'], ['colOutput', 'num'], ['colInput', 'num'],
-    ['colOutputPrice', 'num'], ['colCacheRead', 'num'], ['colCacheWrite', 'num'], ['colEndpoints', '']];
+  const head = [['colModel', 'col-model'], ['colVendor', 'col-vendor'], ['colEffort', 'col-effort'], ['colContext', 'col-context'],
+    ['colPrice', 'col-price'], ['colEndpoints', 'col-endpoints']];
   $('table-head').innerHTML = head.map(([k, cls]) => `<th class="${cls}">${esc(t(k))}</th>`).join('');
+  $('table-cols').innerHTML = head.map(() => '<col>').join('');
 
   $('table-body').innerHTML = groupedModels().map(([cat, list]) => {
     const rows = list.map(m => {
-      const p = pricesOf(m);
       const lim = m.capabilities?.limits || {};
       const eps = sortedEndpoints(m);
       return `<tr class="model-row${m.id === state.openId ? ' is-selected' : ''}" data-id="${esc(m.id)}" tabindex="0">
         <td><div class="model-cell">${vendorLogo(m.vendor)}<div>
-          <div class="model-name">${esc(m.name || m.id)}${m.preview ? `<span class="tag tone-amber">${esc(t('preview'))}</span>` : ''}</div>
+          <div class="model-name">${esc(m.name || m.id)}${m.preview ? `<span class="tag tone-amber">${esc(t('preview'))}</span>` : ''}${riskTags(m)}</div>
           <div class="model-id">${esc(m.id)}</div></div></div></td>
         <td>${m.vendor ? esc(m.vendor) : dash}</td>
-        <td class="num">${tokens(lim.max_context_window_tokens)}</td>
-        <td class="num">${tokens(lim.max_output_tokens)}</td>
-        <td class="num">${price(p.input_price)}</td>
-        <td class="num">${price(isImageModel(m) ? p.image_output_price : p.output_price)}</td>
-        <td class="num">${isImageModel(m) ? dash : price(p.cache_price)}</td>
-        <td class="num">${isImageModel(m) ? dash : price(p.cache_write_price)}</td>
-        <td><div class="endpoints">${eps.length ? eps.map(ep => endpointTag(ep, false)).join('') : dash}</div></td>
+        <td>${effortLevels(m.capabilities?.supports?.reasoning_effort)}</td>
+        <td>${tokens(lim.max_context_window_tokens)}</td>
+        <td>${priceCell(m)}</td>
+        <td class="col-endpoints"><div class="endpoints">${eps.length ? eps.map(ep => endpointTag(ep, false)).join('') : dash}</div></td>
       </tr>`;
     }).join('');
-    return `<tr class="group-row"><td colspan="9">${esc(t(cat))}<span class="count">${list.length}</span></td></tr>${rows}`;
+    return `<tr class="group-row group-${CATEGORY_TONES[cat]}"><td colspan="6"><span class="group-dot dot-${CATEGORY_TONES[cat]}"></span>${esc(t(cat))}<span class="count">${list.length}</span></td></tr>${rows}`;
   }).join('');
+  balanceColumns();
+}
+
+// Each column is as wide as its widest content, and the width left over is
+// shared out as equal gaps between columns, so the table fills the card at
+// any window size. Below the minimum gap the table scrolls sideways.
+const MIN_COL_GAP = 28;
+function balanceColumns() {
+  const viewport = $('table-viewport');
+  const cols = [...$('table-cols').children];
+  if (viewport.hidden || !cols.length) return;
+  const contentWidth = cell => {
+    const range = document.createRange();
+    range.selectNodeContents(cell);
+    return range.getBoundingClientRect().width;
+  };
+  const widths = [...$('table-head').children].map(contentWidth);
+  for (const tr of $('table-body').querySelectorAll('tr.model-row')) {
+    [...tr.children].forEach((td, i) => { widths[i] = Math.max(widths[i], contentWidth(td)); });
+  }
+  const style = getComputedStyle(viewport);
+  const avail = viewport.clientWidth - parseFloat(style.paddingLeft) - parseFloat(style.paddingRight);
+  const gap = Math.max(MIN_COL_GAP, (avail - widths.reduce((a, b) => a + b, 0)) / (widths.length - 1));
+  widths.forEach((w, i) => { cols[i].style.width = `${Math.ceil(w) + (i < widths.length - 1 ? Math.floor(gap) : 0)}px`; });
 }
 
 // Known endpoints in ENDPOINTS order, unknown ones after them.
@@ -381,63 +432,216 @@ function section(iconName, tone, title, content, aux) {
   return `<section class="section"><h4 class="section-title">${icon(iconName, tone)}${esc(title)}${aux ? `<span class="card-aux">${esc(aux)}</span>` : ''}</h4>${content}</section>`;
 }
 
-const PRICE_ITEMS = [['input', 'input_price'], ['output', 'output_price'], ['cacheRead', 'cache_price'],
-  ['cacheWrite', 'cache_write_price'], ['cacheWrite1h', 'cache_write_1h_price'],
-  ['imageInput', 'image_input_price'], ['imageOutput', 'image_output_price']];
+// Labels for the price fields this page knows, in display order. Any other
+// *_price field in the catalog still shows, named after its key.
+const PRICE_LABELS = {
+  input_price: 'input', output_price: 'output', cache_price: 'cacheRead', cache_write_price: 'cacheWrite',
+  cache_write_1h_price: 'cacheWrite1h', cache_write_12h_price: 'cacheWrite12h', image_input_price: 'imageInput', image_output_price: 'imageOutput',
+};
+const priceLabel = k => (k in PRICE_LABELS ? t(PRICE_LABELS[k]) : k.replace(/_price$/, '').replaceAll('_', ' '));
+
+// Every *_price field in the tiers, known ones first, zero values included.
+function priceKeys(tiers) {
+  const present = new Set(tiers.flatMap(tier => Object.keys(tier).filter(k => k.endsWith('_price'))));
+  return [...Object.keys(PRICE_LABELS).filter(k => present.has(k)), ...[...present].filter(k => !(k in PRICE_LABELS)).sort()];
+}
+
+// Every reasoning effort level the model accepts, in catalog order.
+const effortLevels = levels => (Array.isArray(levels) && levels.length ? esc(levels.join(' / ')) : dash);
+
+// Tags next to the model name for catalog notices that affect using it:
+// a planned deprecation date and Anthropic's data retention warning.
+function riskTags(m) {
+  const tags = [];
+  for (const msg of Array.isArray(m.info_messages) ? m.info_messages : []) {
+    if (msg?.code !== 'model_pending_deprecation') continue;
+    const date = /\d{4}-\d{2}-\d{2}/.exec(msg.message || '')?.[0];
+    const label = date ? t('deprecates', { date: date.slice(0, 4) === String(new Date().getFullYear()) ? date.slice(5).replace('-', '/') : date }) : t('noticePendingDeprecation');
+    tags.push(`<span class="tag tone-amber" title="${esc(msg.message || '')}">${esc(label)}</span>`);
+  }
+  if (m.warning_text?.data_retention) {
+    tags.push(`<span class="tag tone-red" title="${esc(m.warning_text.data_retention)}">${esc(t('noticeDataRetention'))}</span>`);
+  }
+  return tags.join('');
+}
+
+// Table price per 1M tokens from the default tier, labeled: input and
+// output on the first line, cache read and write on the second. Image models
+// bill their output as image tokens; every other price is in the drawer.
+function priceCell(m) {
+  if (!isPriced(m)) return `<span class="muted">${esc(t('unpriced'))}</span>`;
+  const p = m.billing.token_prices.default;
+  const image = p.image_output_price != null;
+  const item = (label, v) => `<span class="price-label">${esc(label)}:</span> ${price(v)}`;
+  const sep = '<span class="price-sep">/</span>';
+  return `<div class="price-lines">
+    <div>${item(t('input'), p.input_price)}${sep}${image ? item(t('imageOutput'), p.image_output_price) : item(t('output'), p.output_price)}</div>
+    <div>${item(t('cacheReadShort'), p.cache_price)}${sep}${item(t('cacheWriteShort'), p.cache_write_price)}</div></div>`;
+}
 
 // Rows are context tiers. A long-context tier priced like the default one
-// collapses into a single row covering the whole window.
+// collapses into a single row covering the whole window; any other tier the
+// catalog adds gets its own row, named after its key.
 function priceMatrix(m) {
-  const tiers = m.billing?.token_prices || {};
-  const short = tiers.default;
-  if (!short) return dl(row(t('pricing'), dash));
-  const long = tiers.long_context;
-  const same = long && PRICE_ITEMS.every(([, k]) => long[k] === short[k]);
+  if (!isPriced(m)) return plain(`<span class="muted">${esc(t('unpriced'))}</span>`);
+  const tp = m.billing.token_prices;
+  const isTier = v => v && typeof v === 'object' && !Array.isArray(v);
+  const short = tp.default;
+  const long = isTier(tp.long_context) ? tp.long_context : null;
+  const same = long && priceKeys([short, long]).every(k => long[k] === short[k]);
   // Plain text: the range is escaped below, so a missing bound must not become the dash HTML.
   const range = (sign, n) => (n == null ? '' : `${sign} ${tokens(n)}`);
   const rows = !long ? [[t('allContext'), range('≤', short.context_max), short]]
     : same ? [[t('allContext'), range('≤', long.context_max), short]]
     : [[t('shortContext'), range('≤', short.context_max), short], [t('longContext'), range('>', short.context_max), long]];
-  const items = PRICE_ITEMS.filter(([, k]) => !(isImageModel(m) && CACHE_PRICES.includes(k)) && rows.some(([, , tier]) => tier[k] != null));
-  return `<table class="price-matrix"><thead><tr><th>${esc(t('tier'))}</th>${items.map(([label]) => `<th>${esc(t(label))}</th>`).join('')}</tr></thead>
-    <tbody>${rows.map(([name, range, tier]) => `<tr><td>${esc(name)}${range ? `<span class="tier-range">${esc(range)}</span>` : ''}</td>${items.map(([, k]) => `<td>${price(tier[k])}</td>`).join('')}</tr>`).join('')}</tbody></table>`;
+  for (const [k, v] of Object.entries(tp)) {
+    if (isTier(v) && k !== 'default' && k !== 'long_context') rows.push([keyName(k), range('≤', v.context_max), v]);
+  }
+  const keys = priceKeys(rows.map(([, , tier]) => tier));
+  return `<table class="price-matrix"><thead><tr><th>${esc(t('tier'))}</th>${keys.map(k => `<th>${esc(priceLabel(k))}</th>`).join('')}</tr></thead>
+    <tbody>${rows.map(([name, range, tier]) => `<tr><td>${esc(name)}${range ? `<span class="tier-range">${esc(range)}</span>` : ''}</td>${keys.map(k => `<td>${price(tier[k])}</td>`).join('')}</tr>`).join('')}</tbody></table>`;
+}
+
+// ---------- drawer: every field the catalog gives the model ----------
+const LIMIT_LABELS = {
+  max_context_window_tokens: 'contextWindow', max_prompt_tokens: 'maxPrompt', max_output_tokens: 'maxOutput',
+  max_non_streaming_output_tokens: 'maxNonStreaming', max_inputs: 'maxInputs',
+};
+const TOKEN_LIMITS = new Set(['max_context_window_tokens', 'max_prompt_tokens', 'max_output_tokens', 'max_non_streaming_output_tokens']);
+const VISION_LABELS = { supported_media_types: 'mediaTypes', max_prompt_images: 'maxImages', max_prompt_image_size: 'maxImageSize' };
+const SUPPORT_LABELS = {
+  tool_calls: 'toolCalls', parallel_tool_calls: 'parallelToolCalls', structured_outputs: 'structured', streaming: 'streaming',
+  vision: 'vision', reasoning_effort: 'effort', adaptive_thinking: 'adaptive', min_thinking_budget: 'minThinking',
+  max_thinking_budget: 'maxThinking', dimensions: 'dimensions',
+};
+const NOTICE_LABELS = { model_pending_deprecation: 'noticePendingDeprecation', data_retention: 'noticeDataRetention' };
+const PLAN_LABELS = { individual_trial: 'planTrial', edu: 'planEdu' };
+const PLAN_NAMES = { free: 'Free', pro: 'Pro', pro_plus: 'Pro+', max: 'Max', business: 'Business', enterprise: 'Enterprise' };
+const VALUE_LABELS = {
+  chat: 'typeChat', image: 'typeImage', decisions: 'typeDecisions', embeddings: 'typeEmbeddings', completion: 'typeCompletion',
+  low: 'levelLow', medium: 'levelMedium', high: 'levelHigh', very_high: 'levelVeryHigh', enabled: 'policyEnabled', disabled: 'policyDisabled',
+};
+// Fields with a fixed place in the drawer; `object` only names the JSON type.
+const PLACED = {
+  model: ['id', 'name', 'vendor', 'version', 'object', 'preview', 'capabilities', 'billing', 'policy', 'supported_endpoints',
+    'model_picker_enabled', 'model_picker_category', 'model_picker_price_category', 'is_chat_default', 'is_chat_fallback',
+    'info_messages', 'warning_text'],
+  capabilities: ['family', 'type', 'tokenizer', 'object', 'limits', 'supports'],
+  tokenPrices: ['default', 'long_context', 'batch_size', 'preferred_tier'],
+};
+
+const PRICING_DOCS = 'https://docs.github.com/en/copilot/reference/copilot-billing/models-and-pricing';
+const keyName = k => k.replaceAll('_', ' ');
+const fieldLabel = (labels, k) => (k in labels ? t(labels[k]) : keyName(k));
+// Known keys in their listed order, then any others as the catalog has them.
+const orderedKeys = (obj, labels) => [...Object.keys(labels).filter(k => k in obj), ...Object.keys(obj).filter(k => !(k in labels))];
+const fmtBytes = n => (n >= 1048576 ? `${trimFixed(n / 1048576, 1)} MB` : `${trimFixed(n / 1024, 1)} KB`);
+const planName = p => (p in PLAN_LABELS ? t(PLAN_LABELS[p]) : PLAN_NAMES[p] || p);
+const tierName = k => (k === 'default' ? t('shortContext') : k === 'long_context' ? t('longContext') : keyName(k));
+
+// One catalog value as HTML: booleans as yes/no (or supported/not), lists
+// joined, objects as compact JSON, known words translated.
+function fmt(v, { bool = 'yes', num } = {}) {
+  if (v == null || v === '') return dash;
+  if (typeof v === 'boolean') return esc(bool === 'support' ? t(v ? 'supported' : 'unsupported') : t(v ? 'yes' : 'no'));
+  if (Array.isArray(v)) return v.length ? esc(v.map(x => (typeof x === 'object' ? JSON.stringify(x) : x)).join(' / ')) : dash;
+  if (typeof v === 'object') return `<code>${esc(JSON.stringify(v))}</code>`;
+  if (typeof v === 'number') return esc(num ? num(v) : v.toLocaleString('en-US'));
+  return esc(v in VALUE_LABELS ? t(VALUE_LABELS[v]) : v);
+}
+
+// Rows for the fields of obj not listed in placed, named after their keys.
+const extraRows = (obj, placed) => Object.keys(obj || {}).filter(k => !placed.includes(k)).map(k => row(keyName(k), fmt(obj[k])));
+const block = (label, html) => `<div class="is-block"><dt>${esc(label)}</dt><dd>${html}</dd></div>`;
+const plain = html => `<div class="section-text">${html}</div>`;
+const rowsOrDash = rows => (rows.length ? dl(...rows) : plain(dash));
+// Policy terms may carry Markdown links; only https links become anchors.
+const mdLinks = text => esc(text).replace(/\[([^\]]+)\]\((https:\/\/[^)\s]+)\)/g, '<a href="$2" target="_blank" rel="noopener">$1</a>');
+
+function noticesHtml(m) {
+  const notices = [
+    ...(Array.isArray(m.info_messages) ? m.info_messages : []).map(x => ['info', x?.code || '', x?.message ?? x]),
+    ...Object.entries(m.warning_text || {}).map(([k, v]) => ['warn', k, v]),
+  ];
+  return notices.map(([kind, code, text]) => `<div class="notice notice-${kind}">${icon('circle-alert')}<div>
+    ${code ? `<div class="notice-title">${esc(fieldLabel(NOTICE_LABELS, code))}</div>` : ''}
+    <div>${esc(typeof text === 'string' ? text : JSON.stringify(text))}</div></div></div>`).join('');
+}
+
+function limitsHtml(m) {
+  const lim = m.capabilities?.limits || {};
+  const vision = lim.vision && typeof lim.vision === 'object' ? lim.vision : {};
+  return rowsOrDash([
+    ...orderedKeys(lim, LIMIT_LABELS).filter(k => k !== 'vision')
+      .map(k => row(fieldLabel(LIMIT_LABELS, k), fmt(lim[k], { num: TOKEN_LIMITS.has(k) ? tokens : null }))),
+    ...orderedKeys(vision, VISION_LABELS).map(k => row(fieldLabel(VISION_LABELS, k), k === 'supported_media_types' && Array.isArray(vision[k])
+      ? fmt(vision[k].map(x => String(x).split('/').pop().toUpperCase()))
+      : fmt(vision[k], { num: k === 'max_prompt_image_size' ? fmtBytes : null }))),
+  ]);
+}
+
+function pricingHtml(m) {
+  const billing = m.billing || {};
+  const tp = billing.token_prices || {};
+  const meta = [];
+  if (Array.isArray(billing.restricted_to)) meta.push(row(t('plans'), fmt(billing.restricted_to.map(planName))));
+  if (tp.preferred_tier) meta.push(row(t('preferredTier'), esc(tierName(tp.preferred_tier))));
+  meta.push(...Object.keys(tp).filter(k => !PLACED.tokenPrices.includes(k) && (tp[k] == null || typeof tp[k] !== 'object'))
+    .map(k => row(keyName(k), fmt(tp[k]))));
+  meta.push(...extraRows(billing, ['token_prices', 'restricted_to']));
+  const imageNote = tp.default?.image_output_price != null
+    ? `<p class="price-note">${esc(t('imagePriceNote'))} <a href="${PRICING_DOCS}" target="_blank" rel="noopener">${esc(t('pricingDocs'))}</a></p>` : '';
+  return priceMatrix(m) + imageNote + (meta.length ? dl(...meta) : '');
+}
+
+function capabilitiesHtml(m) {
+  const s = m.capabilities?.supports || {};
+  return rowsOrDash(orderedKeys(s, SUPPORT_LABELS).map(k => row(fieldLabel(SUPPORT_LABELS, k),
+    fmt(s[k], { bool: 'support', num: k.endsWith('_thinking_budget') ? tokens : null }))));
+}
+
+function detailsHtml(m) {
+  const caps = m.capabilities || {};
+  const policy = m.policy || {};
+  const opt = (label, v, html = fmt(v)) => (v === undefined ? '' : row(label, html));
+  const category = m.model_picker_category;
+  return dl(
+    opt(t('version'), m.version),
+    opt(t('family'), caps.family),
+    opt(t('modelType'), caps.type),
+    opt(t('tokenizer'), caps.tokenizer),
+    opt(t('pickerCategory'), category, CATEGORIES.includes(category) ? esc(t(category)) : fmt(category)),
+    opt(t('priceCategory'), m.model_picker_price_category),
+    opt(t('pickerEnabled'), m.model_picker_enabled),
+    opt(t('chatDefault'), m.is_chat_default),
+    opt(t('chatFallback'), m.is_chat_fallback),
+    opt(t('preview'), m.preview),
+    opt(t('policyState'), policy.state),
+    policy.terms ? block(t('policyTerms'), mdLinks(policy.terms)) : '',
+    ...extraRows(policy, ['state', 'terms']),
+    ...extraRows(caps, PLACED.capabilities),
+    ...extraRows(m, PLACED.model),
+  );
 }
 
 function renderDrawer() {
   const m = state.openId ? state.models.find(x => x.id === state.openId) : null;
   $('drawer').hidden = !m;
   if (!m) return;
-  const lim = m.capabilities?.limits || {};
-  const s = m.capabilities?.supports || {};
-  const yes = (on, text = t('supported')) => (on ? esc(text) : dash);
-
   $('drawer-logo').innerHTML = vendorLogo(m.vendor, 'is-large');
   $('drawer-title').textContent = m.name || m.id;
   $('drawer-sub').innerHTML = `<span class="model-id">${esc(m.id)}</span>`
     + (m.vendor ? `<span class="tag tone-slate">${esc(m.vendor)}</span>` : '')
-    + (CATEGORIES.includes(m.model_picker_category) ? `<span class="tag tone-purple">${esc(t(m.model_picker_category))}</span>` : '')
+    + (CATEGORIES.includes(m.model_picker_category) ? `<span class="tag tone-${CATEGORY_TONES[m.model_picker_category]}">${esc(t(m.model_picker_category))}</span>` : '')
     + (m.preview ? `<span class="tag tone-amber">${esc(t('preview'))}</span>` : '');
 
-  const media = (lim.vision?.supported_media_types || []).map(x => x.split('/')[1].toUpperCase()).join(' / ');
   const eps = sortedEndpoints(m);
-
-  $('drawer-body').innerHTML = [
-    section('gauge', 'text-blue', t('limits'), dl(
-      row(t('contextWindow'), tokens(lim.max_context_window_tokens)),
-      row(t('maxPrompt'), tokens(lim.max_prompt_tokens)),
-      row(t('maxOutput'), tokens(lim.max_output_tokens)),
-      row(t('maxNonStreaming'), tokens(lim.max_non_streaming_output_tokens)),
-    )),
-    section('wallet', 'text-amber', t('pricing'), priceMatrix(m), t('priceUnit')),
-    section('sparkles', 'text-purple', t('capabilities'), dl(
-      row(t('toolCalls'), yes(s.tool_calls, s.parallel_tool_calls ? t('parallel') : t('supported'))),
-      row(t('structured'), yes(s.structured_outputs)),
-      row(t('streaming'), yes(s.streaming)),
-      row(t('vision'), yes(s.vision, media ? `${t('supported')} · ${media}` : t('supported'))),
-      row(t('effort'), (s.reasoning_effort || []).length ? esc(s.reasoning_effort.join(' / ')) : dash),
-      row(t('adaptive'), yes(s.adaptive_thinking)),
-    )),
-    section('route', 'text-teal', t('endpoints'), dl(row(t('endpoints'), eps.length ? eps.map(ep => endpointTag(ep, true)).join('') : dash))),
+  $('drawer-body').innerHTML = noticesHtml(m) + [
+    section('gauge', 'text-blue', t('limits'), limitsHtml(m)),
+    section('wallet', 'text-amber', t('pricing'), pricingHtml(m), t('priceUnit')),
+    section('sparkles', 'text-purple', t('capabilities'), capabilitiesHtml(m)),
+    section('route', 'text-teal', t('endpoints'), plain(eps.length ? `<div class="endpoints">${eps.map(ep => endpointTag(ep, true)).join('')}</div>` : dash)),
+    section('boxes', 'text-blue', t('details'), detailsHtml(m)),
   ].join('');
 }
 
@@ -530,6 +734,9 @@ $('provider-menu').addEventListener('click', e => {
   renderTable();
   renderDrawer();
 });
+
+window.addEventListener('resize', () => requestAnimationFrame(balanceColumns));
+document.fonts?.ready.then(balanceColumns);
 
 $('table-body').addEventListener('click', e => {
   const rowEl = e.target.closest('.model-row');
