@@ -44,8 +44,7 @@ A login-protected page at `/` that shows the live model catalog: every callable 
 
 **Disabled by default.** It only exists when **both** `COPILOTGW_WEB_USERNAME` and `COPILOTGW_WEB_PASSWORD` are set, otherwise all web paths return 404 and the gateway behaves as a pure API gateway, exactly as before.
 
-![CopilotGateway Web Dashboard](./assets/copilot-gateway-web-1.png)
-![CopilotGateway Web Dashboard](./assets/copilot-gateway-web-2.png)
+![CopilotGateway Web Dashboard](./assets/copilot-gateway-web.png)
 
 ## Quick Start
 
