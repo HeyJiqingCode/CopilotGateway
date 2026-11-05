@@ -6,7 +6,7 @@ A lightweight Go gateway/proxy that exposes GitHub Copilot as OpenAI-compatible 
 
 ## Features
 
-- **OpenAI API Compatible**: `/v1/chat/completions`, `/v1/responses`, `/v1/images/generations`, `/v1/images/edits`, `/v1/models`
+- **OpenAI API Compatible**: `/v1/chat/completions`, `/v1/responses`, `/v1/images/generations`, `/v1/images/edits`, `/v1/decisions`, `/v1/models`
 - **Anthropic API Compatible**: `/v1/messages`
 - **Models Cache**: 5-minute cache for `/v1/models` and Anthropic model capability lookups
 - **1M Context Native**: Long-context limits come straight from the Copilot catalog on the base model ID
@@ -33,6 +33,7 @@ A lightweight Go gateway/proxy that exposes GitHub Copilot as OpenAI-compatible 
 | `/v1/responses` | POST | OpenAI Responses API |
 | `/v1/images/generations` | POST | OpenAI Images API: generate images, e.g. with `gpt-image-2.5-flare` |
 | `/v1/images/edits` | POST | OpenAI Images API: edit images (multipart/form-data) |
+| `/v1/decisions` | POST | OpenAI Decisions API, e.g. with `gpt-6-luna-decisions` |
 | `/v1/messages` | POST | Anthropic Messages API (streaming & non-streaming) |
 | `/v1/models` | GET | List available models (5min cache) |
 | `/health` | GET | Health check (unauthenticated) |
