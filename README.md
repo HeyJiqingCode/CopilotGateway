@@ -141,6 +141,7 @@ Enter the code and the gateway recovers without a restart. The same code is also
   -api-key string       Required API key(s), comma-separated (env: COPILOTGW_API_KEY)
   -responses-id-compat  Normalize drifting Responses output item IDs (default true)
   -auto-review-model string  Model replacing Codex's codex-auto-review pseudo-model (env: COPILOTGW_AUTO_REVIEW_MODEL)
+  -update-check         Check GitHub for a newer release (default true, env: COPILOTGW_UPDATE_CHECK)
   -debug                Enable debug logging
   -version              Show version and exit
 ```
@@ -158,6 +159,7 @@ Enter the code and the gateway recovers without a restart. The same code is also
 | `COPILOTGW_DEBUG` | Enable debug logging (`true`/`false`, `1`/`0`) | `false` |
 | `COPILOTGW_RESPONSES_ID_COMPAT` | Normalize drifting Responses output item IDs; see [streaming compatibility](#streaming-compatibility) | `true` |
 | `COPILOTGW_AUTO_REVIEW_MODEL` | Model that replaces `codex-auto-review`, the pseudo-model Codex sends for automatic approval review and Copilot rejects, e.g. `gpt-6-luna` | _unset — forwarded unchanged_ |
+| `COPILOTGW_UPDATE_CHECK` | Check GitHub for a newer release and show it on the dashboard | `true` |
 | `COPILOTGW_EDITOR_VERSION` | Spoofed editor version header | `vscode/1.142.0` |
 | `COPILOTGW_PLUGIN_VERSION` | Spoofed plugin version header | `copilot-chat/0.70.0` |
 | `COPILOTGW_CHAT_USER_AGENT` | Spoofed Copilot Chat User-Agent | `GitHubCopilotChat/0.70.0` |
