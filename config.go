@@ -15,6 +15,7 @@ type config struct {
 	debug             bool
 	responsesIDCompat bool
 	autoReviewModel   string
+	updateCheck       bool
 	showVersion       bool
 }
 
@@ -31,6 +32,7 @@ var flagEnv = []struct{ flag, env string }{
 	{"debug", "COPILOTGW_DEBUG"},
 	{"responses-id-compat", "COPILOTGW_RESPONSES_ID_COMPAT"},
 	{"auto-review-model", "COPILOTGW_AUTO_REVIEW_MODEL"},
+	{"update-check", "COPILOTGW_UPDATE_CHECK"},
 }
 
 // parseConfig parses args, then fills every flag not given on the command line
@@ -46,6 +48,7 @@ func parseConfig(args []string, getenv func(string) string) (config, error) {
 	fs.BoolVar(&cfg.debug, "debug", false, "Enable debug logging (env: COPILOTGW_DEBUG)")
 	fs.BoolVar(&cfg.responsesIDCompat, "responses-id-compat", true, "Normalize drifting Responses output item IDs (env: COPILOTGW_RESPONSES_ID_COMPAT)")
 	fs.StringVar(&cfg.autoReviewModel, "auto-review-model", "", "Model that replaces Codex's codex-auto-review pseudo-model (env: COPILOTGW_AUTO_REVIEW_MODEL)")
+	fs.BoolVar(&cfg.updateCheck, "update-check", true, "Check GitHub every 6 hours for a newer release (env: COPILOTGW_UPDATE_CHECK)")
 	fs.BoolVar(&cfg.showVersion, "version", false, "Show version and exit")
 	if err := fs.Parse(args); err != nil {
 		return config{}, fmt.Errorf("%w: %w", errReported, err)

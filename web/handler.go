@@ -22,6 +22,15 @@ type Config struct {
 	SessionHours int
 	// APIKeys 供页面「接入信息」展示与复制,由 main 注入(与网关鉴权同一份)。
 	APIKeys []string
+	// Update 报告是否有比当前构建更新的正式版本;nil 表示不检查(由 main 注入)。
+	Update func() (Release, bool)
+}
+
+// Release 是比当前构建更新的正式版本,页面据此提示升级。
+type Release struct {
+	Version string `json:"version"` // 新版本 tag,如 v1.3.0
+	URL     string `json:"url"`     // 新版本的 GitHub Release 页面
+	Current string `json:"current"` // 当前运行的版本
 }
 
 // ConfigFromEnv 从环境变量读取配置;用户名或密码缺失时返回 false(web 不启用)。
@@ -201,10 +210,16 @@ func (h *Handler) writeModels(w http.ResponseWriter, r *http.Request) {
 	}{h.models.CachedAt(), upstreamBody.Data})
 }
 
-// handleConfig 返回接入信息(API key 仅对已登录会话下发)和当前用户。
+// handleConfig 返回接入信息(API key 仅对已登录会话下发)、当前用户,以及有新版本时的升级信息。
 func (h *Handler) handleConfig(w http.ResponseWriter, r *http.Request) {
 	if username, ok := h.requireSession(w, r); ok {
-		writeJSON(w, http.StatusOK, map[string]any{"api_keys": h.cfg.APIKeys, "username": username})
+		resp := map[string]any{"api_keys": h.cfg.APIKeys, "username": username}
+		if h.cfg.Update != nil {
+			if rel, ok := h.cfg.Update(); ok {
+				resp["update"] = rel
+			}
+		}
+		writeJSON(w, http.StatusOK, resp)
 	}
 }
 

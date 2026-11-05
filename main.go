@@ -119,8 +119,17 @@ func main() {
 
 	// Web UI:仅当同时配置了用户名和密码时才注册路由,
 	// 未配置时这些路径落到 mux 的 404,不暴露任何页面。
+	// Release check: a newer GitHub release is logged and shown on the dashboard.
+	updates := newUpdateChecker(version)
+	if cfg.updateCheck {
+		go updates.run(ctx, 6*time.Hour)
+	}
+
 	if webCfg, ok := web.ConfigFromEnv(); ok {
 		webCfg.APIKeys = apiKeys
+		if cfg.updateCheck {
+			webCfg.Update = updates.newer
+		}
 		web.NewHandler(webCfg, modelsCache).Register(mux)
 		slog.Info("web ui enabled", "session_hours", webCfg.SessionHours)
 	}

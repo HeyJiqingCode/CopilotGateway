@@ -81,6 +81,17 @@ button { cursor: pointer; }
 .tool-btn:hover, .tool-btn[aria-expanded="true"] { background: var(--surface-soft); color: var(--primary); }
 .tool-btn:disabled { cursor: default; }
 .tool-btn .icon { width: 16px; height: 16px; }
+/* A newer release: a pulsing red dot on the GitHub button */
+.tool-btn.has-update { position: relative; }
+.tool-btn.has-update::after {
+  content: ''; position: absolute; top: -3px; right: -3px; width: 9px; height: 9px; border-radius: 50%;
+  background: var(--danger); box-shadow: 0 0 0 2px var(--page); animation: update-pulse 1.8s ease-out infinite;
+}
+@keyframes update-pulse {
+  0% { box-shadow: 0 0 0 2px var(--page), 0 0 0 2px #b33e4566; }
+  70%, 100% { box-shadow: 0 0 0 2px var(--page), 0 0 0 9px #b33e4500; }
+}
+@media (prefers-reduced-motion: reduce) { .tool-btn.has-update::after { animation: none; } }
 .spin { animation: spin 1s linear infinite; }
 @keyframes spin { to { transform: rotate(360deg); } }
 

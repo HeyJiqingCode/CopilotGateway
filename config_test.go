@@ -14,7 +14,7 @@ func TestParseConfig_Defaults(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := config{host: "127.0.0.1", port: 7777, responsesIDCompat: true}
+	want := config{host: "127.0.0.1", port: 7777, responsesIDCompat: true, updateCheck: true}
 	if cfg != want {
 		t.Fatalf("config = %+v, want %+v", cfg, want)
 	}
@@ -29,6 +29,7 @@ func TestParseConfig_EnvironmentFillsUnsetFlags(t *testing.T) {
 		"COPILOTGW_DEBUG":               "1",
 		"COPILOTGW_RESPONSES_ID_COMPAT": "false",
 		"COPILOTGW_AUTO_REVIEW_MODEL":   "gpt-6-luna",
+		"COPILOTGW_UPDATE_CHECK":        "false",
 	}))
 	if err != nil {
 		t.Fatal(err)
@@ -61,6 +62,7 @@ func TestParseConfig_InvalidEnvironmentIsAnError(t *testing.T) {
 		"COPILOTGW_PORT":                "seventy",
 		"COPILOTGW_DEBUG":               "maybe",
 		"COPILOTGW_RESPONSES_ID_COMPAT": "sometimes",
+		"COPILOTGW_UPDATE_CHECK":        "weekly",
 	} {
 		_, err := parseConfig(nil, env(map[string]string{name: value}))
 		if err == nil || !strings.Contains(err.Error(), name) {

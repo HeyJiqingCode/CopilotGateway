@@ -258,3 +258,38 @@ func TestModelsEndpoint(t *testing.T) {
 		}
 	})
 }
+
+func TestConfigEndpointReportsNewerRelease(t *testing.T) {
+	newer := Release{Version: "v1.3.0", URL: "https://github.com/HeyJiqingCode/CopilotGateway/releases/tag/v1.3.0", Current: "1.2.0"}
+	for _, tc := range []struct {
+		name   string
+		update func() (Release, bool)
+		want   *Release
+	}{
+		{"newer release", func() (Release, bool) { return newer, true }, &newer},
+		{"up to date", func() (Release, bool) { return Release{}, false }, nil},
+		{"check disabled", nil, nil},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			cfg := testConfig()
+			cfg.Update = tc.update
+			mux := http.NewServeMux()
+			NewHandler(cfg, stubModels{}).Register(mux)
+			c := doLogin(t, mux, "admin", "pass123")
+			req := httptest.NewRequest(http.MethodGet, "/web/api/config", nil)
+			req.AddCookie(c)
+			rec := httptest.NewRecorder()
+			mux.ServeHTTP(rec, req)
+
+			var got struct {
+				Update *Release `json:"update"`
+			}
+			if err := json.Unmarshal(rec.Body.Bytes(), &got); err != nil {
+				t.Fatal(err)
+			}
+			if (got.Update == nil) != (tc.want == nil) || (got.Update != nil && *got.Update != *tc.want) {
+				t.Fatalf("update = %+v, want %+v (body %s)", got.Update, tc.want, rec.Body.String())
+			}
+		})
+	}
+}

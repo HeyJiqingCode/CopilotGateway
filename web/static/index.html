@@ -100,6 +100,7 @@ const I18N = {
     contextWindow: '上下文窗口', maxPrompt: '最大输入', maxOutput: '最大输出', maxNonStreaming: '非流式最大输出',
     input: '输入', output: '输出', cacheRead: '缓存读取', cacheWrite: '缓存写入', cacheWrite1h: '1 小时缓存写入',
     imageInput: '图片输入', imageOutput: '图片输出',
+    newVersion: '新版本 {version} 可更新（当前 {current}）',
     tier: '上下文', shortContext: '短上下文', longContext: '长上下文', allContext: '全部',
     toolCalls: '工具调用', structured: '结构化输出', streaming: '流式', vision: '视觉', effort: 'Reasoning effort', adaptive: '自适应思考',
     supported: '支持', parallel: '支持 · 可并行',
@@ -118,6 +119,7 @@ const I18N = {
     contextWindow: 'Context window', maxPrompt: 'Max input', maxOutput: 'Max output', maxNonStreaming: 'Max output (non-streaming)',
     input: 'Input', output: 'Output', cacheRead: 'Cache read', cacheWrite: 'Cache write', cacheWrite1h: 'Cache write 1h',
     imageInput: 'Image input', imageOutput: 'Image output',
+    newVersion: 'New version {version} available (current {current})',
     tier: 'Context', shortContext: 'Short context', longContext: 'Long context', allContext: 'All',
     toolCalls: 'Tool calls', structured: 'Structured outputs', streaming: 'Streaming', vision: 'Vision', effort: 'Reasoning effort', adaptive: 'Adaptive thinking',
     supported: 'Supported', parallel: 'Supported · parallel',
@@ -164,7 +166,7 @@ const VENDOR_LOGOS = {
 
 const state = {
   lang: CGW.getLang(), provider: '', models: [], cachedAt: null, loaded: false, loadError: '',
-  apiKeys: [], username: '', openId: null,
+  apiKeys: [], username: '', openId: null, update: null,
 };
 const $ = id => document.getElementById(id);
 const { esc, icon } = CGW;
@@ -307,6 +309,20 @@ function setProviderMenu(open) {
   $('provider-btn').setAttribute('aria-expanded', String(open));
 }
 
+const REPO_URL = 'https://github.com/HeyJiqingCode/CopilotGateway';
+
+// A newer release turns the GitHub button into a link to its release notes.
+function renderUpdate() {
+  const btn = $('github');
+  const u = state.update && String(state.update.url).startsWith('https://github.com/') ? state.update : null;
+  const vTag = v => (String(v).startsWith('v') ? v : `v${v}`);
+  const label = u ? t('newVersion', { version: vTag(u.version), current: vTag(u.current) }) : 'GitHub';
+  btn.classList.toggle('has-update', Boolean(u));
+  btn.href = u ? u.url : REPO_URL;
+  btn.title = label;
+  btn.setAttribute('aria-label', label);
+}
+
 function renderUser() {
   $('menu-user').textContent = state.username;
 }
@@ -425,7 +441,7 @@ function renderDrawer() {
   ].join('');
 }
 
-function render() { renderStatic(); renderConnection(); renderUser(); renderTable(); renderDrawer(); }
+function render() { renderStatic(); renderConnection(); renderUser(); renderUpdate(); renderTable(); renderDrawer(); }
 
 // ---------- behaviour ----------
 function openModel(id) {
@@ -465,8 +481,10 @@ async function loadConfig() {
     const body = await fetchJSON('/web/api/config');
     state.apiKeys = body.api_keys || [];
     state.username = body.username || '';
+    state.update = body.update || null;
     renderConnection();
     renderUser();
+    renderUpdate();
   } catch (e) { console.warn('config load failed:', e); }
 }
 
